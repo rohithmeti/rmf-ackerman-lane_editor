@@ -1,9 +1,9 @@
-hi there its a small try to make rmf map for ackerman type amrs and this conist of making a map as well converting existing map as well so yeah check it out enable reversiable in navigation config and do define ur kinamtics ur amrs ackerman kinamatics properly defining turning radius 
-Min turning radius
-Safety margin on radius
-Wheelbase (front–rear axle)
-Track width (left–right)
-Body length
-Body width
-Wall clearance
-
+Hi everyone! Here is a quick guide to making Open-RMF maps for Ackerman-type AMRs. This includes creating a new map from scratch as well as converting existing maps.
+Make sure to enable "reversible" in your navigation config. Also, don't forget to properly define your AMR's Ackerman kinematics using these exact parameters:
+• Min turning radius
+• Safety margin on radius
+• Wheelbase (front–rear axle)
+• Track width (left–right)
+• Body length
+• Body width
+• Wall clearance
