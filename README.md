@@ -11,6 +11,6 @@ Make sure to enable "reversible" in your navigation config. Also, don't forget t
 • Body length
 • Body width
 • Wall clearance
-simply double tap it ll open in ur browser 
+download or clone it double tap on lane_maker.html it ll open in ur browser u can either make ur own map or use ur exsiting rmf map and get it converted here to ackerman style and export it directly to 0graph 
 
 u might have to adjust few nodes if the radius isnt comprtible so do increse nav goal tolarnace and u can directly export it to o.yaml format i ll be updating fully working editor soon 
