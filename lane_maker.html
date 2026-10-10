@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ackermann Lane Maker</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1d2330; --muted: #5b6475; --line: #d9dde5;
+    --accent: #2f6fde; --ok: #1f9d55; --bad: #d64545; --warn: #d98a00; --canvas: #8a8f98;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15181e; --panel: #1d2129; --text: #e6e9ef; --muted: #9aa3b2; --line: #2e3440;
+            --accent: #6b9cff; --ok: #3ccf7d; --bad: #ff6b6b; --warn: #ffb547; --canvas: #3a3f48; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #app { display: flex; height: 100vh; }
+  #side { width: 330px; min-width: 330px; overflow-y: auto; background: var(--panel);
+          border-right: 1px solid var(--line); padding: 10px 12px 40px; }
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #wrap { flex: 1; position: relative; background: var(--canvas); overflow: hidden; }
+  canvas { display: block; position: absolute; inset: 0; cursor: crosshair; }
+  #status { padding: 4px 10px; border-top: 1px solid var(--line); background: var(--panel);
+            display: flex; gap: 16px; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  #msg.bad { color: var(--bad); } #msg.ok { color: var(--ok); } #msg.warn { color: var(--warn); }
+  h1 { font-size: 16px; margin: 2px 0 8px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 14px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+  .row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+  .row label { flex: 1; color: var(--text); }
+  .row input[type=number], .row input[type=text], .row select {
+    width: 92px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  .unit { width: 26px; color: var(--muted); font-size: 12px; }
+  .info { color: var(--muted); font-size: 12px; margin: 3px 0; }
+  .info b { color: var(--text); font-weight: 600; }
+  button { font: inherit; padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px;
+           background: var(--bg); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .help { color: var(--muted); font-size: 12px; padding-left: 16px; margin: 4px 0; }
+  .help li { margin: 2px 0; }
+  kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: 11px; }
+  input[type=file] { font-size: 12px; max-width: 100%; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1>Ackermann Lane Maker</h1>
+
+    <h2>1 · Map</h2>
+    <input type="file" id="mapFiles" multiple accept=".yaml,.yml,.pgm,.png,.jpg,.jpeg">
+    <div class="info">Select the map <b>.yaml</b> and its image (<b>.pgm</b>/.png) together.</div>
+    <div class="row"><label>Resolution</label><input type="number" id="res" step="0.001" value="0.05"><span class="unit">m/px</span></div>
+    <div class="row"><label>Origin x</label><input type="number" id="orgX" step="0.01" value="0"><span class="unit">m</span></div>
+    <div class="row"><label>Origin y</label><input type="number" id="orgY" step="0.01" value="0"><span class="unit">m</span></div>
+    <div class="info" id="mapInfo">No map loaded.</div>
+    <div class="btns"><button id="fitBtn">Fit map</button><button id="gridBtn" class="on">1 m grid</button></div>
+
+    <h2>2 · Robot (Ackermann)</h2>
+    <div class="row"><label>Min turning radius</label><input type="number" id="pRmin" step="0.01" value="0.40"><span class="unit">m</span></div>
+    <div class="row"><label>Safety margin on radius</label><input type="number" id="pMargin" step="1" value="10"><span class="unit">%</span></div>
+    <div class="row"><label>Wheelbase (front–rear axle)</label><input type="number" id="pWb" step="0.005" value="0.200"><span class="unit">m</span></div>
+    <div class="row"><label>Track width (left–right)</label><input type="number" id="pTrack" step="0.005" value="0.175"><span class="unit">m</span></div>
+    <div class="row"><label>Body length</label><input type="number" id="pLen" step="0.005" value="0.322"><span class="unit">m</span></div>
+    <div class="row"><label>Body width</label><input type="number" id="pWid" step="0.005" value="0.220"><span class="unit">m</span></div>
+    <div class="row"><label>Wall clearance</label><input type="number" id="pClear" step="0.01" value="0.05"><span class="unit">m</span></div>
+    <div class="info" id="geoInfo"></div>
+
+    <h2>3 · Lanes</h2>
+    <div class="row"><label>Micro-node spacing (max)</label><input type="number" id="pSpacing" step="0.05" value="0.30"><span class="unit">m</span></div>
+    <div class="row"><label>Max turn per micro-node</label><input type="number" id="pStep" step="1" value="15"><span class="unit">°</span></div>
+    <div class="row"><label>New lane type</label>
+      <select id="laneType"><option value="oneway">one-way</option><option value="twoway">two-way</option></select><span class="unit"></span></div>
+    <div class="row"><label>Default dock yaw</label><input type="number" id="dockYaw" step="5" value="0"><span class="unit">°</span></div>
+
+    <h2>4 · Tools</h2>
+    <div class="btns">
+      <button id="modeDock">Place dock <kbd>D</kbd></button>
+      <button id="modeLane" class="on">Draw lanes <kbd>L</kbd></button>
+    </div>
+    <div class="btns">
+      <button id="undoBtn">Undo <kbd>Ctrl+Z</kbd></button>
+      <button id="delBtn">Delete last <kbd>Del</kbd></button>
+      <button id="clearBtn">Clear all</button>
+    </div>
+
+    <h2>Selected node</h2>
+    <div id="selBox" class="info">None. Click a dock or node to select it.</div>
+    <div class="row"><label>Name</label><input type="text" id="selName" disabled><span class="unit"></span></div>
+    <div class="row"><label>Yaw (docks without lanes)</label><input type="number" id="selYaw" step="5" disabled><span class="unit">°</span></div>
+
+    <h2>5 · Export</h2>
+    <div class="row"><label>RMF level name</label><input type="text" id="levelName" value="L1"><span class="unit"></span></div>
+    <div class="btns">
+      <button id="exportBtn">Export 0.yaml</button>
+      <button id="saveBtn">Save project</button>
+      <label><button id="loadBtn" type="button">Load project</button></label>
+      <input type="file" id="projFile" accept=".json" hidden>
+    </div>
+    <div class="info" id="checkInfo"></div>
+
+    <h2>6 · Convert an RMF graph</h2>
+    <input type="file" id="graphFile" accept=".yaml,.yml">
+    <div class="info">Load an existing nav graph <b>0.yaml</b>: every corner is rounded to an arc the robot can drive.</div>
+    <div class="row"><label>Preferred corner radius</label><input type="number" id="cPref" step="0.05" value="0.60"><span class="unit">m</span></div>
+    <div class="row"><label>Treat as straight up to</label><input type="number" id="cStraight" step="1" value="8"><span class="unit">°</span></div>
+    <div class="row"><label>Show original graph</label><input type="checkbox" id="cOrig" checked><span class="unit"></span></div>
+    <div class="btns"><button id="convExport">Export converted 0.yaml</button><button id="convClear">Remove</button></div>
+    <div class="info" id="convInfo">No graph loaded.</div>
+    <div id="convList"></div>
+
+    <h2>How to use</h2>
+    <ol class="help">
+      <li>Load the map (.yaml + .pgm).</li>
+      <li><b>Place dock</b>: press on the map and drag in the direction the robot faces, release.</li>
+      <li><b>Draw lanes</b>: move the mouse. Red circles = the robot's turning circles (unreachable).
+        The green arc at the cursor distance = allowed angle range. Click to drop the next node; the
+        curve and its micro-nodes are made for you.</li>
+      <li><kbd>Shift</kbd> snaps the turn to 15° steps (0° = straight, 90° = quarter turn).</li>
+      <li>Click any dock/node to continue from it. <kbd>Esc</kbd> = stop drawing.</li>
+      <li>Wheel = zoom, right/middle drag = pan.</li>
+    </ol>
+  </div>
+
+  <div id="main">
+    <div id="wrap"><canvas id="cv"></canvas></div>
+    <div id="status"><span id="stPos">x — y —</span><span id="stZoom"></span><span id="stCount"></span><span id="msg"></span></div>
+  </div>
+</div>
+
+<script src="lane_math.js"></script>
+<script>
+'use strict';
+const LM = window.LaneMath, DEG = LM.DEG;
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+
+/* ---------------- state ---------------- */
+const S = {
+  map: null,                 // {name, w, h, res, ox, oy, occ, img}
+  view: { sc: 40, ox: 300, oy: 300 },    // screen = (x*sc + ox, -y*sc + oy)
+  nodes: [],                 // {id, kind: 'dock'|'node', x, y, yaw, name}
+  curves: [],                // {id, from, to, twoWay}
+  counters: { id: 1, dock: 0, node: 0 },
+  active: null,              // node id lanes continue from
+  mode: 'lane',
+  mouse: null,               // world point under the cursor
+  shift: false,
+  dockDrag: null,            // {x, y, yaw, sx, sy}
+  pan: null,
+  grid: true,
+  undo: [],
+  ver: 0,                    // bumps when params/map change (invalidates curve caches)
+  convSrc: null,             // parsed RMF graph being converted
+  conv: null,                // conversion result
+};
+const cache = new Map();     // curve id -> {ver, ev, status, samples, micro}
+
+function msg(text, cls) { const m = $('msg'); m.textContent = text || ''; m.className = cls || ''; }
+function nodeById(id) { return S.nodes.find(n => n.id === id); }
+function snapshot() {
+  S.undo.push(JSON.stringify({ nodes: S.nodes, curves: S.curves, counters: S.counters, active: S.active }));
+  if (S.undo.length > 200) S.undo.shift();
+}
+
+/* ---------------- parameters ---------------- */
+function num(id, def) { const v = parseFloat($(id).value); return isFinite(v) ? v : def; }
+function params() {
+  const p = {
+    minTurnRadius: Math.max(0.01, num('pRmin', 0.4)),
+    marginPct: Math.max(0, num('pMargin', 0)),
+    wheelbase: Math.max(0.01, num('pWb', 0.2)),
+    track: Math.max(0.01, num('pTrack', 0.175)),
+    length: Math.max(0.01, num('pLen', 0.322)),
+    width: Math.max(0.01, num('pWid', 0.22)),
+    clearance: Math.max(0, num('pClear', 0.05)),
+    spacing: Math.max(0.05, num('pSpacing', 0.3)),
+    maxStep: Math.max(1, num('pStep', 15)),
+  };
+  const geo = LM.robotGeometry(p);
+  geo.clearance = p.clearance; geo.spacing = p.spacing; geo.maxStep = p.maxStep;
+  return geo;
+}
+let GEO = params();
+function onParams() {
+  GEO = params(); S.ver++;
+  const sw = LM.sweptRadii(GEO.rDesign, GEO);
+  $('geoInfo').innerHTML =
+    `Design min radius <b>${GEO.rDesign.toFixed(3)} m</b> · max steering <b>${GEO.maxSteerDeg.toFixed(1)}°</b><br>` +
+    `At the tightest turn: inner rear wheel on <b>${sw.wheelInnerRear.toFixed(3)} m</b>, outer front corner sweeps ` +
+    `<b>${sw.bodyOuter.toFixed(3)} m</b> → swept band <b>${(sw.bodyOuter - sw.bodyInner).toFixed(3)} m</b> wide ` +
+    `(body ${GEO.width.toFixed(3)} m).<br>Path point = rear-axle centre.`;
+  if (S.convSrc) runConvert();
+  draw();
+}
+
+/* ---------------- view ---------------- */
+function w2s(x, y) { return [x * S.view.sc + S.view.ox, -y * S.view.sc + S.view.oy]; }
+function s2w(px, py) { return { x: (px - S.view.ox) / S.view.sc, y: -(py - S.view.oy) / S.view.sc }; }
+function resize() {
+  const r = $('wrap').getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function fitMap() {
+  const r = $('wrap').getBoundingClientRect();
+  if (!S.map) { S.view = { sc: 60, ox: r.width / 2, oy: r.height / 2 }; draw(); return; }
+  const wm = S.map.w * S.map.res, hm = S.map.h * S.map.res;
+  const sc = Math.min(r.width / wm, r.height / hm) * 0.95;
+  const cx = S.map.ox + wm / 2, cy = S.map.oy + hm / 2;
+  S.view = { sc, ox: r.width / 2 - cx * sc, oy: r.height / 2 + cy * sc };
+  draw();
+}
+
+/* ---------------- map loading ---------------- */
+function readAs(file, how) {
+  return new Promise((ok, bad) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(fr.result); fr.onerror = () => bad(fr.error);
+    how === 'text' ? fr.readAsText(file) : how === 'url' ? fr.readAsDataURL(file) : fr.readAsArrayBuffer(file);
+  });
+}
+async function loadMapFiles(files) {
+  const list = [...files];
+  const yf = list.find(f => /\.ya?ml$/i.test(f.name));
+  let meta = {};
+  if (yf) {
+    meta = LM.parseMapYaml(await readAs(yf, 'text'));
+    if (meta.resolution) $('res').value = meta.resolution;
+    if (Array.isArray(meta.origin)) { $('orgX').value = meta.origin[0] ?? 0; $('orgY').value = meta.origin[1] ?? 0; }
+  }
+  let imf = list.find(f => /\.(pgm|png|jpe?g)$/i.test(f.name) && (!meta.image || f.name === String(meta.image).split('/').pop()));
+  if (!imf) imf = list.find(f => /\.(pgm|png|jpe?g)$/i.test(f.name));
+  if (!imf) { msg(yf ? `Now also select the image "${meta.image}" (together with the .yaml).` : 'No map image selected.', 'warn'); return; }
+
+  let w, h, gray;
+  if (/\.pgm$/i.test(imf.name)) {
+    const pgm = LM.parsePGM(new Uint8Array(await readAs(imf, 'buf')));
+    w = pgm.width; h = pgm.height; gray = pgm.data;
+  } else {
+    const url = await readAs(imf, 'url');
+    const im = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    w = im.naturalWidth; h = im.naturalHeight;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const cc = c.getContext('2d'); cc.drawImage(im, 0, 0);
+    const d = cc.getImageData(0, 0, w, h).data; gray = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) gray[i] = Math.round(0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2]);
+  }
+  const img = document.createElement('canvas'); img.width = w; img.height = h;
+  const ic = img.getContext('2d'), id = ic.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = gray[i]; id.data[4 * i + 3] = 255; }
+  ic.putImageData(id, 0, 0);
+  S.map = { name: imf.name, w, h, img, occ: LM.occupancyFromGray(gray, meta), meta,
+            res: num('res', 0.05), ox: num('orgX', 0), oy: num('orgY', 0) };
+  const yawNote = Array.isArray(meta.origin) && Math.abs(meta.origin[2] || 0) > 1e-6 ? ' ⚠ origin yaw ≠ 0 is ignored.' : '';
+  updateMapInfo(yf ? '' : ' (no .yaml: using the fields above)');
+  msg(`Map loaded: ${imf.name}${yawNote}`, yawNote ? 'warn' : 'ok');
+  S.ver++; if (S.convSrc) runConvert(); fitMap();
+}
+function updateMapInfo(extra) {
+  if (!S.map) { $('mapInfo').textContent = 'No map loaded.'; return; }
+  const m = S.map;
+  $('mapInfo').innerHTML = `<b>${m.name}</b> · ${m.w}×${m.h} px = ${(m.w * m.res).toFixed(2)}×${(m.h * m.res).toFixed(2)} m<br>` +
+    `resolution ${m.res} m/px · origin (${m.ox}, ${m.oy}) = bottom-left corner${extra || ''}`;
+}
+function onMapFields() {
+  if (!S.map) return;
+  S.map.res = num('res', 0.05); S.map.ox = num('orgX', 0); S.map.oy = num('orgY', 0);
+  updateMapInfo(); S.ver++; draw();
+}
+
+/* ---------------- collision check ---------------- */
+function occAt(x, y) {
+  const m = S.map; if (!m) return 0;
+  const col = Math.floor((x - m.ox) / m.res), row = m.h - 1 - Math.floor((y - m.oy) / m.res);
+  if (col < 0 || row < 0 || col >= m.w || row >= m.h) return 1;   // outside the map = unknown
+  return m.occ[row * m.w + col];
+}
+function checkPath(samples) {
+  if (!S.map) return 'nomap';
+  const g = Object.assign({}, GEO, { width: GEO.width + 2 * GEO.clearance, overhang: GEO.overhang + GEO.clearance });
+  let worst = 0;
+  for (const p of samples) {
+    for (const q of LM.footprintPoints(p, g, Math.min(0.05, S.map.res))) {
+      const o = occAt(q.x, q.y);
+      if (o === 2) return 'hit';
+      if (o > worst) worst = o;
+    }
+  }
+  return worst === 1 ? 'unknown' : 'ok';
+}
+
+/* ---------------- lane evaluation ---------------- */
+function analyse(pose, target) {
+  const ev = LM.evalTarget(pose, target, GEO);
+  const samples = LM.samplePath(pose, ev, 0.05);
+  const status = ev.feasible ? checkPath(samples) : 'infeasible';
+  const micro = ev.feasible ? LM.microNodes(pose, ev, GEO.spacing, GEO.maxStep) : null;
+  return { ev, samples, status, micro };
+}
+function curveInfo(c) {
+  let k = cache.get(c.id);
+  if (!k || k.ver !== S.ver) {
+    const a = nodeById(c.from), b = nodeById(c.to);
+    k = Object.assign({ ver: S.ver }, analyse(a, b));
+    cache.set(c.id, k);
+  }
+  return k;
+}
+function previewTarget() {
+  const a = nodeById(S.active); if (!a || !S.mouse) return null;
+  let t = S.mouse;
+  if (S.shift) {                               // snap the heading change to 15 deg steps, keep the distance
+    const ev = LM.evalTarget(a, t, GEO);
+    const turn = Math.round(2 * ev.alpha * DEG / 15) * 15 / DEG;
+    const al = Math.max(-89.9 / DEG, Math.min(89.9 / DEG, turn / 2));
+    t = { x: a.x + ev.L * Math.cos(a.yaw + al), y: a.y + ev.L * Math.sin(a.yaw + al) };
+  }
+  return t;
+}
+
+/* ---------------- editing ---------------- */
+function addDock(x, y, yaw) {
+  yaw = LM.wrap(yaw); if (yaw <= -Math.PI + 1e-9) yaw = Math.PI;      // show 180°, not -180°
+  snapshot();
+  S.counters.dock++;
+  const n = { id: S.counters.id++, kind: 'dock', x, y, yaw, name: `dock_${S.counters.dock}` };
+  S.nodes.push(n); S.active = n.id; setMode('lane'); updateSel();
+  msg(`${n.name} placed, facing ${(yaw * DEG).toFixed(0)}°. Now draw lanes from it.`, 'ok');
+}
+function addLane(target) {
+  const a = nodeById(S.active); if (!a) return;
+  const r = analyse(a, target);
+  if (!r.ev.feasible) {
+    msg(r.ev.reason === 'turn too tight'
+      ? `✘ Too tight: needs R ${r.ev.R.toFixed(2)} m < ${GEO.rDesign.toFixed(2)} m. Move it at least ${r.ev.needAhead.toFixed(2)} m ahead.`
+      : `✘ ${r.ev.reason}.`, 'bad');
+    return;
+  }
+  snapshot();
+  S.counters.node++;
+  const b = { id: S.counters.id++, kind: 'node', x: target.x, y: target.y, yaw: r.ev.endYaw, name: `n${S.counters.node}` };
+  S.nodes.push(b);
+  S.curves.push({ id: S.counters.id++, from: a.id, to: b.id, twoWay: $('laneType').value === 'twoway' });
+  S.active = b.id; updateSel();
+  const warn = r.status === 'hit' ? ' ⚠ footprint hits a wall' : r.status === 'unknown' ? ' ⚠ passes unknown space' : '';
+  msg(`Lane ${a.name} → ${b.name}: ${r.ev.straight ? 'straight' : 'R ' + r.ev.R.toFixed(2) + ' m'}, ` +
+      `${r.micro.nodes.length - 1} micro-nodes.${warn}`, warn ? 'warn' : 'ok');
+}
+function deleteLast() {
+  const a = nodeById(S.active);
+  if (!a) { msg('Select a node first (the end of a lane).', 'warn'); return; }
+  if (S.curves.some(c => c.from === a.id)) { msg(`${a.name} has lanes going out of it; delete those first.`, 'warn'); return; }
+  snapshot();
+  const inc = S.curves.find(c => c.to === a.id);
+  S.curves = S.curves.filter(c => c.to !== a.id);
+  S.nodes = S.nodes.filter(n => n.id !== a.id);
+  S.active = inc ? inc.from : null; updateSel();
+  msg(`Deleted ${a.name}.`, 'ok');
+}
+function undo() {
+  const s = S.undo.pop(); if (!s) { msg('Nothing to undo.'); return; }
+  Object.assign(S, JSON.parse(s)); cache.clear(); updateSel(); draw(); msg('Undone.');
+}
+function setMode(m) {
+  S.mode = m;
+  $('modeDock').classList.toggle('on', m === 'dock'); $('modeLane').classList.toggle('on', m === 'lane');
+  msg(m === 'dock' ? 'Press on the map and drag towards where the robot faces.' : (S.active ? '' : 'Click a dock or node to start drawing from it.'));
+  draw();
+}
+function pickNode(px, py) {
+  let best = null, bd = 12;
+  for (const n of S.nodes) { const [x, y] = w2s(n.x, n.y); const d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = n; } }
+  return best;
+}
+function updateSel() {
+  const n = nodeById(S.active);
+  $('selName').disabled = !n; $('selYaw').disabled = !n || n.kind !== 'dock' || S.curves.some(c => c.from === n.id);
+  if (!n) { $('selBox').textContent = 'None. Click a dock or node to select it.'; $('selName').value = ''; $('selYaw').value = ''; return; }
+  $('selBox').innerHTML = `<b>${n.kind}</b> at (${n.x.toFixed(3)}, ${n.y.toFixed(3)}) m, heading <b>${(n.yaw * DEG).toFixed(1)}°</b>`;
+  $('selName').value = n.name; $('selYaw').value = (n.yaw * DEG).toFixed(1);
+}
+
+/* ---------------- drawing ---------------- */
+const COL = { lane: 'rgba(47,111,222,0.28)', laneLine: '#2f6fde', ok: '#1f9d55', bad: '#d64545', warn: '#d98a00' };
+function line(pts, color, width, dash) {
+  if (pts.length < 2) return;
+  ctx.beginPath(); pts.forEach((p, i) => { const [x, y] = w2s(p.x, p.y); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function band(samples, halfW, fill) {         // a lane drawn as wide as the robot body
+  const L = [], R = [];
+  for (const p of samples) {
+    const nx = -Math.sin(p.yaw), ny = Math.cos(p.yaw);
+    L.push(w2s(p.x + nx * halfW, p.y + ny * halfW)); R.push(w2s(p.x - nx * halfW, p.y - ny * halfW));
+  }
+  ctx.beginPath(); L.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+  R.reverse().forEach(([x, y]) => ctx.lineTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+}
+function sweptBand(pose, ev, fill) {          // the real area the body sweeps on the arc
+  if (ev.straight || !ev.center) return;
+  const sw = LM.sweptRadii(ev.R, GEO), sign = ev.alpha > 0 ? 1 : -1;
+  const a0 = Math.atan2(pose.y - ev.center.y, pose.x - ev.center.x), a1 = a0 + ev.turn;
+  const [cx, cy] = w2s(ev.center.x, ev.center.y);
+  ctx.beginPath();
+  ctx.arc(cx, cy, sw.bodyOuter * S.view.sc, -a0, -a1, sign > 0);
+  ctx.arc(cx, cy, Math.max(0, sw.bodyInner) * S.view.sc, -a1, -a0, sign < 0);
+  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+}
+function arrow(x, y, yaw, lenPx, color, width) {
+  const [sx, sy] = w2s(x, y), ex = sx + Math.cos(yaw) * lenPx, ey = sy - Math.sin(yaw) * lenPx;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+  const h = 7, a = Math.atan2(ey - sy, ex - sx);
+  ctx.moveTo(ex, ey); ctx.lineTo(ex - h * Math.cos(a - 0.45), ey - h * Math.sin(a - 0.45));
+  ctx.moveTo(ex, ey); ctx.lineTo(ex - h * Math.cos(a + 0.45), ey - h * Math.sin(a + 0.45));
+  ctx.strokeStyle = color; ctx.lineWidth = width || 2; ctx.stroke();
+}
+function footprintPoly(pose, color) {
+  const pts = LM.footprint(pose, GEO);
+  ctx.beginPath(); pts.forEach((p, i) => { const [x, y] = w2s(p.x, p.y); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.closePath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+}
+function circleW(x, y, r, fill, stroke) {
+  const [sx, sy] = w2s(x, y); ctx.beginPath(); ctx.arc(sx, sy, r * S.view.sc, 0, 2 * Math.PI);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]); }
+}
+function dot(x, y, r, fill, stroke) {
+  const [sx, sy] = w2s(x, y); ctx.beginPath(); ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+  ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+}
+function hud(px, py, lines) {
+  ctx.font = '12px system-ui, sans-serif';
+  const w = Math.max(...lines.map(l => ctx.measureText(l[0]).width)) + 16, h = lines.length * 17 + 8;
+  const r = cv.getBoundingClientRect();
+  let x = px + 18, y = py + 18;
+  if (x + w > r.width) x = px - w - 18;
+  if (y + h > r.height) y = py - h - 18;
+  ctx.fillStyle = 'rgba(20,24,32,0.88)'; ctx.fillRect(x, y, w, h);
+  lines.forEach(([t, c], i) => { ctx.fillStyle = c || '#e6e9ef'; ctx.fillText(t, x + 8, y + 18 + i * 17); });
+}
+function draw() {
+  if (draw.pending) return;
+  draw.pending = true;
+  requestAnimationFrame(() => { draw.pending = false; render(); });
+}
+function render() {
+  const r = cv.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  const sc = S.view.sc;
+  // map
+  if (S.map) {
+    const m = S.map, [x0, y0] = w2s(m.ox, m.oy + m.h * m.res);
+    ctx.imageSmoothingEnabled = m.res * sc < 3;
+    ctx.drawImage(m.img, x0, y0, m.w * m.res * sc, m.h * m.res * sc);
+  }
+  // grid + origin
+  if (S.grid && sc > 8) {
+    const a = s2w(0, r.height), b = s2w(r.width, 0);
+    ctx.beginPath();
+    for (let x = Math.ceil(a.x); x <= b.x; x++) { const [sx] = w2s(x, 0); ctx.moveTo(sx, 0); ctx.lineTo(sx, r.height); }
+    for (let y = Math.ceil(a.y); y <= b.y; y++) { const [, sy] = w2s(0, y); ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
+    ctx.strokeStyle = 'rgba(47,111,222,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+  arrow(0, 0, 0, 30, '#d64545', 2); arrow(0, 0, Math.PI / 2, 30, '#1f9d55', 2);
+  renderConv();
+
+  // existing lanes
+  for (const c of S.curves) {
+    const k = curveInfo(c), a = nodeById(c.from);
+    const bad = k.status === 'infeasible' || k.status === 'hit', warn = k.status === 'unknown';
+    band(k.samples, GEO.width / 2, bad ? 'rgba(214,69,69,0.30)' : warn ? 'rgba(217,138,0,0.28)' : COL.lane);
+    line(k.samples, bad ? COL.bad : COL.laneLine, 2, c.twoWay ? [8, 4] : null);
+    const mid = k.samples[Math.floor(k.samples.length / 2)];
+    arrow(mid.x, mid.y, mid.yaw, 12, bad ? COL.bad : COL.laneLine, 2);
+    if (c.twoWay) arrow(mid.x, mid.y, mid.yaw + Math.PI, 12, bad ? COL.bad : COL.laneLine, 2);
+    if (k.micro) k.micro.nodes.slice(0, -1).forEach(p => dot(p.x, p.y, 3, '#fff', COL.laneLine));
+    void a;
+  }
+  // nodes
+  ctx.font = '11px system-ui, sans-serif';
+  for (const n of S.nodes) {
+    const [sx, sy] = w2s(n.x, n.y);
+    if (n.id === S.active) { ctx.beginPath(); ctx.arc(sx, sy, 11, 0, 2 * Math.PI); ctx.strokeStyle = '#ffb547'; ctx.lineWidth = 3; ctx.stroke(); }
+    if (n.kind === 'dock') { ctx.fillStyle = '#1f9d55'; ctx.fillRect(sx - 6, sy - 6, 12, 12); }
+    else dot(n.x, n.y, 5.5, COL.laneLine, '#fff');
+    arrow(n.x, n.y, n.yaw, 22, n.kind === 'dock' ? '#1f9d55' : COL.laneLine, 2);
+    ctx.fillStyle = '#111'; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(n.name, sx + 9, sy - 9); ctx.fillText(n.name, sx + 9, sy - 9);
+  }
+
+  // dock being placed
+  if (S.dockDrag) {
+    const d = S.dockDrag;
+    footprintPoly(d, '#1f9d55'); arrow(d.x, d.y, d.yaw, 40, '#1f9d55', 3);
+    const [sx, sy] = w2s(d.x, d.y); hud(sx, sy, [[`dock yaw ${(d.yaw * DEG).toFixed(0)}°  (Shift = 15° steps)`]]);
+  }
+
+  // live preview from the active node
+  const a = nodeById(S.active), t = S.mode === 'lane' ? previewTarget() : null;
+  if (a && S.mode === 'lane') {
+    const rr = GEO.rDesign, s = Math.sin(a.yaw), c = Math.cos(a.yaw);
+    circleW(a.x - rr * s, a.y + rr * c, rr, 'rgba(214,69,69,0.10)', 'rgba(214,69,69,0.8)');   // left turning circle
+    circleW(a.x + rr * s, a.y - rr * c, rr, 'rgba(214,69,69,0.10)', 'rgba(214,69,69,0.8)');   // right turning circle
+    footprintPoly(a, 'rgba(255,181,71,0.9)');
+  }
+  if (a && t && !S.pan) {
+    const k = analyse(a, t), ev = k.ev, [sx, sy] = w2s(a.x, a.y);
+    // allowed angle range at the cursor distance
+    ctx.beginPath(); ctx.arc(sx, sy, ev.L * sc, -(a.yaw + ev.maxAlpha), -(a.yaw - ev.maxAlpha));
+    ctx.strokeStyle = 'rgba(31,157,85,0.95)'; ctx.lineWidth = 4; ctx.stroke();
+    [a.yaw - ev.maxAlpha, a.yaw + ev.maxAlpha].forEach(ang =>
+      line([a, { x: a.x + ev.L * Math.cos(ang), y: a.y + ev.L * Math.sin(ang) }], 'rgba(31,157,85,0.6)', 1, [4, 4]));
+    line([a, { x: a.x + Math.max(ev.L, 0.5) * c0(a.yaw), y: a.y + Math.max(ev.L, 0.5) * s0(a.yaw) }], 'rgba(255,255,255,0.7)', 1, [2, 4]);
+    const col = !ev.feasible ? COL.bad : k.status === 'hit' ? COL.bad : k.status === 'unknown' ? COL.warn : COL.ok;
+    if (ev.feasible) {
+      sweptBand(a, ev, 'rgba(255,181,71,0.18)');
+      band(k.samples, GEO.width / 2, ev.feasible && k.status === 'ok' || k.status === 'nomap' ? 'rgba(31,157,85,0.30)' : 'rgba(214,69,69,0.30)');
+    }
+    line(k.samples, col, 2.5, ev.feasible ? null : [6, 5]);
+    if (k.micro) k.micro.nodes.forEach((p, i, arr) => dot(p.x, p.y, i === arr.length - 1 ? 5 : 3, i === arr.length - 1 ? col : '#fff', col));
+    if (ev.feasible) { const end = k.samples[k.samples.length - 1]; footprintPoly(end, col); arrow(end.x, end.y, end.yaw, 22, col, 2); }
+    if (ev.needAhead) {                                       // where it WOULD work at this sideways offset
+      const g = { x: a.x + ev.needAhead * c0(a.yaw) - ev.left * s0(a.yaw), y: a.y + ev.needAhead * s0(a.yaw) + ev.left * c0(a.yaw) };
+      const [gx, gy] = w2s(g.x, g.y);
+      ctx.beginPath(); ctx.moveTo(gx - 6, gy - 6); ctx.lineTo(gx + 6, gy + 6); ctx.moveTo(gx + 6, gy - 6); ctx.lineTo(gx - 6, gy + 6);
+      ctx.strokeStyle = COL.ok; ctx.lineWidth = 2; ctx.stroke();
+    }
+    // readout
+    const [px, py] = w2s(t.x, t.y), L = [];
+    L.push([`distance ${ev.L.toFixed(2)} m · angle off heading ${(ev.alpha * DEG).toFixed(1)}°`]);
+    L.push([`allowed at this distance: ±${(ev.maxAlpha * DEG).toFixed(1)}°`]);
+    if (ev.reason === 'behind the robot (no reversing)' || ev.reason === 'same point') L.push([`✘ OUT OF RANGE: ${ev.reason}`, '#ff8a8a']);
+    else if (ev.straight) L.push(['✔ IN RANGE: straight lane', '#7ee2a8']);
+    else {
+      L.push([`needs radius ${ev.R.toFixed(3)} m (design min ${GEO.rDesign.toFixed(3)} m)`]);
+      L.push(ev.feasible ? [`✔ IN RANGE · turn ${(ev.turn * DEG).toFixed(1)}° → heading ${(ev.endYaw * DEG).toFixed(1)}°`, '#7ee2a8']
+                         : [`✘ OUT OF RANGE: too tight. Move ≥ ${ev.needAhead.toFixed(2)} m ahead (green ×)`, '#ff8a8a']);
+      L.push([`steering ${ev.steerDeg.toFixed(1)}° of max ${GEO.maxSteerDeg.toFixed(1)}°`]);
+    }
+    if (k.micro) {
+      L.push([`path ${ev.arcLen.toFixed(2)} m · ${k.micro.nodes.length - 1} micro-nodes @ ${k.micro.spacing.toFixed(2)} m, ${k.micro.stepDeg.toFixed(1)}° each`]);
+      if (k.micro.spacing < 0.15) L.push(['⚠ micro-nodes < 0.15 m apart (Nav2 goal tolerance)', '#ffd27a']);
+    }
+    if (k.status === 'hit') L.push(['⚠ robot footprint (+clearance) hits a wall', '#ff8a8a']);
+    else if (k.status === 'unknown') L.push(['⚠ passes unknown space / outside the map', '#ffd27a']);
+    hud(px, py, L);
+  }
+
+  // status bar
+  $('stZoom').textContent = `zoom ${sc.toFixed(1)} px/m`;
+  $('stCount').textContent = `${S.nodes.filter(n => n.kind === 'dock').length} docks · ${S.nodes.filter(n => n.kind === 'node').length} nodes · ${S.curves.length} lanes`;
+  updateChecks();
+}
+function c0(a) { return Math.cos(a); }
+function s0(a) { return Math.sin(a); }
+
+/* ---------------- checks + export ---------------- */
+function updateChecks() {
+  const st = S.curves.map(c => curveInfo(c).status);
+  const n = k => st.filter(s => s === k).length;
+  const names = S.nodes.map(x => x.name), dup = names.filter((x, i) => names.indexOf(x) !== i);
+  const parts = [];
+  if (n('infeasible')) parts.push(`<span style="color:var(--bad)">${n('infeasible')} lane(s) too tight for the current radius</span>`);
+  if (n('hit')) parts.push(`<span style="color:var(--bad)">${n('hit')} lane(s) hit a wall</span>`);
+  if (n('unknown')) parts.push(`<span style="color:var(--warn)">${n('unknown')} lane(s) through unknown space</span>`);
+  if (dup.length) parts.push(`<span style="color:var(--bad)">duplicate names: ${[...new Set(dup)].join(', ')}</span>`);
+  $('checkInfo').innerHTML = S.curves.length ? (parts.length ? parts.join('<br>') : '<span style="color:var(--ok)">All lanes drivable and clear.</span>') : '';
+}
+function buildGraph() {
+  const verts = [], idx = new Map(), lanes = [];
+  for (const n of S.nodes) {
+    idx.set(n.id, verts.length);
+    verts.push({ x: n.x, y: n.y, props: n.kind === 'dock'
+      ? { name: n.name, is_charger: true, is_parking_spot: true, is_holding_point: true }
+      : { name: n.name, is_holding_point: true }, yaw: n.yaw });
+  }
+  for (const c of S.curves) {
+    const k = curveInfo(c); if (!k.micro) continue;
+    const chain = [idx.get(c.from)];
+    k.micro.nodes.slice(0, -1).forEach(p => { chain.push(verts.length); verts.push({ x: p.x, y: p.y, props: { name: '' }, yaw: p.yaw }); });
+    chain.push(idx.get(c.to));
+    for (let i = 0; i + 1 < chain.length; i++) {
+      lanes.push([chain[i], chain[i + 1]]);
+      if (c.twoWay) lanes.push([chain[i + 1], chain[i]]);
+    }
+  }
+  return { verts, lanes };
+}
+/* ---------------- RMF graph conversion ---------------- */
+async function loadGraphFile(file) {
+  try {
+    const g = LM.parseNavGraph(await readAs(file, 'text'));
+    if (!g.verts.length || !g.lanes.length) throw new Error('no vertices/lanes found');
+    S.convSrc = Object.assign(g, { file: file.name });
+    runConvert();
+    if (!S.map) fitGraph();
+    msg(`Graph ${file.name}: ${g.verts.length} waypoints, ${g.lanes.length} lanes converted.`, 'ok');
+  } catch (e) { msg('Could not read graph: ' + e.message, 'bad'); }
+}
+function fitGraph() {
+  const vs = S.convSrc.verts, r = $('wrap').getBoundingClientRect();
+  const xs = vs.map(v => v.x), ys = vs.map(v => v.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const sc = Math.min(r.width / (x1 - x0 + 2), r.height / (y1 - y0 + 2));
+  S.view = { sc, ox: r.width / 2 - (x0 + x1) / 2 * sc, oy: r.height / 2 + (y0 + y1) / 2 * sc }; draw();
+}
+function runConvert() {
+  if (!S.convSrc) return;
+  const c = LM.convertToAckermann(S.convSrc, GEO, { prefRadius: num('cPref', 0.6), straightDeg: num('cStraight', 8) });
+  c.arcs.forEach(a => { a.status = checkPath(a.samples); });
+  S.conv = c;
+  const vn = i => { const p = S.convSrc.verts[i].props; return p.name && p.name !== '<Unnamed>' ? p.name : '#' + i; };
+  const hit = c.arcs.filter(a => a.status === 'hit').length, unk = c.arcs.filter(a => a.status === 'unknown').length;
+  const radii = c.arcs.map(a => a.R);
+  const html = [
+    `<b>${S.convSrc.file}</b>: ${c.stats.inVerts} waypoints, ${c.stats.inLanes} lanes → <b>${c.verts.length} vertices, ${c.lanes.length} lanes</b>`,
+    `Ways through nodes: <b>${c.straights.length}</b> straight · <b style="color:var(--ok)">${c.arcs.length}</b> rounded` +
+      (radii.length ? ` (R ${Math.min(...radii).toFixed(2)}–${Math.max(...radii).toFixed(2)} m)` : '') +
+      ` · <b style="color:var(--bad)">${c.bad.length}</b> dropped (red ✘)`,
+    c.moved.length ? `Waypoints moved onto a curve: ${c.moved.length} (max ${Math.max(...c.moved.map(m => m.dist)).toFixed(2)} m)` : 'No waypoint moved.',
+    hit || unk ? `<span style="color:var(--bad)">Arcs touching walls: ${hit}</span>${unk ? ` · <span style="color:var(--warn)">through unknown space: ${unk}</span>` : ''}` : (S.map ? 'All arcs clear of walls.' : 'Load the map to check walls.'),
+    `<span style="color:var(--warn)">Dead ends (robot must reverse out): ${c.deadEnds.length}</span> — ${c.deadEnds.map(d => d.name).join(', ')}`,
+    'Driving forward only, from each dock:<br>' + c.reach.map(r => `&nbsp;${r.dock}: <b>${r.reached}/${r.total}</b>${r.missing.length ? ' (not: ' + r.missing.join(', ') + ')' : ''}`).join('<br>'),
+    c.lost.length ? `<span style="color:var(--bad)">Waypoints lost: ${c.lost.join(', ')}</span>` : '',
+  ].filter(Boolean);
+  $('convInfo').innerHTML = html.join('<br>');
+  const list = $('convList'); list.innerHTML = '';
+  const item = (label, x, y, color) => {
+    const b = document.createElement('button'); b.textContent = label; b.style.cssText = `margin:2px;font-size:11px;color:${color}`;
+    b.onclick = () => { const r = $('wrap').getBoundingClientRect(); S.view.sc = Math.max(S.view.sc, 120);
+      S.view.ox = r.width / 2 - x * S.view.sc; S.view.oy = r.height / 2 + y * S.view.sc; draw(); };
+    list.appendChild(b);
+  };
+  c.bad.forEach(b => { const v = S.convSrc.verts[b.b]; item(`✘ ${vn(b.a)}→${vn(b.b)}→${vn(b.c)} ${b.turnDeg.toFixed(0)}°`, v.x, v.y, 'var(--bad)'); });
+  c.arcs.filter(a => a.status === 'hit').forEach(a => { const v = S.convSrc.verts[a.b]; item(`⚠ wall at ${vn(a.b)}`, v.x, v.y, 'var(--warn)'); });
+  draw();
+}
+function renderConv() {
+  const c = S.conv; if (!c) return;
+  const src = S.convSrc, sc = S.view.sc;
+  if ($('cOrig').checked) {
+    ctx.beginPath();
+    for (const [a, b] of src.lanes) { const [x0, y0] = w2s(src.verts[a].x, src.verts[a].y), [x1, y1] = w2s(src.verts[b].x, src.verts[b].y); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }
+    ctx.strokeStyle = 'rgba(120,120,120,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (const a of c.arcs) band(a.samples, GEO.width / 2, a.status === 'hit' ? 'rgba(214,69,69,0.30)' : a.status === 'unknown' ? 'rgba(217,138,0,0.25)' : 'rgba(31,157,85,0.22)');
+  ctx.beginPath();                                   // straight parts of the converted lanes
+  for (const [i, j] of c.lanes) {
+    const vi = c.verts[i], vj = c.verts[j]; if (vi.kind === 'micro' || vj.kind === 'micro') continue;
+    const [x0, y0] = w2s(vi.x, vi.y), [x1, y1] = w2s(vj.x, vj.y); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+  }
+  ctx.strokeStyle = '#2f6fde'; ctx.lineWidth = 2; ctx.stroke();
+  for (const a of c.arcs) line(a.samples, a.status === 'hit' ? COL.bad : a.status === 'unknown' ? COL.warn : COL.ok, 2.5);
+  if (sc > 60) c.verts.forEach(v => { if (v.kind === 'micro') dot(v.x, v.y, 2.5, '#fff', COL.ok); });
+  for (const b of c.bad) {
+    const v = src.verts[b.b], [x, y] = w2s(v.x, v.y);
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, 2 * Math.PI); ctx.strokeStyle = COL.bad; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = 'bold 11px system-ui'; ctx.fillStyle = COL.bad; ctx.fillText(`✘${b.turnDeg.toFixed(0)}°`, x + 10, y + 14);
+  }
+  for (const d of c.deadEnds) { const v = src.verts[d.b], [x, y] = w2s(v.x, v.y); ctx.beginPath(); ctx.arc(x, y, 12, 0, 2 * Math.PI); ctx.strokeStyle = COL.warn; ctx.lineWidth = 2; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.font = '11px system-ui, sans-serif';
+  c.verts.forEach(v => {
+    if (v.src === null) return;
+    const [x, y] = w2s(v.x, v.y);
+    if (v.kind === 'dock') { ctx.fillStyle = '#1f9d55'; ctx.fillRect(x - 5, y - 5, 10, 10); } else dot(v.x, v.y, 4, '#2f6fde', '#fff');
+    const nm = v.props.name || ''; if (!nm || sc < 25) return;
+    ctx.fillStyle = '#111'; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(nm, x + 7, y - 7); ctx.fillText(nm, x + 7, y - 7);
+  });
+}
+function graphYaml(verts, lanes, level, header) {
+  let y = header + `building_name: lane_maker\ndoors: {}\nlifts: {}\nlevels:\n  ${level}:\n    vertices:\n`;
+  verts.forEach(v => { y += `      - [${v.x.toFixed(3)}, ${v.y.toFixed(3)}, ${yamlProps(v.props)}]\n`; });
+  y += '    lanes:\n';
+  lanes.forEach(([a, b]) => { y += `      - [${a}, ${b}, {}]\n`; });
+  return y;
+}
+function exportConverted() {
+  const c = S.conv; if (!c) { msg('Load a graph first.', 'warn'); return; }
+  const head = `# Ackermann version of ${S.convSrc.file}, generated by Ackermann Lane Maker ${new Date().toISOString()}\n` +
+    `# design radius ${GEO.rDesign.toFixed(3)} m, preferred ${num('cPref', 0.6)} m; ${c.arcs.length} corners rounded, ${c.bad.length} dropped, ${c.deadEnds.length} dead ends\n`;
+  download('0_ackermann.yaml', graphYaml(c.verts, c.lanes, c.level || 'L1', head));
+  msg(`Exported 0_ackermann.yaml: ${c.verts.length} vertices, ${c.lanes.length} lanes.`, 'ok');
+}
+
+function yamlProps(p) {
+  return '{' + Object.entries(p).map(([k, v]) => `${k}: ${typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : v}`).join(', ') + '}';
+}
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportYaml() {
+  if (!S.curves.length) { msg('Nothing to export yet.', 'warn'); return; }
+  const g = buildGraph(), lvl = ($('levelName').value || 'L1').trim();
+  const head = `# Generated by Ackermann Lane Maker, ${new Date().toISOString()}\n` +
+          `# Robot: R_min ${GEO.rMin} m (+${num('pMargin', 0)}% margin), wheelbase ${GEO.wheelbase} m, track ${GEO.track} m, body ${GEO.length}x${GEO.width} m\n`;
+  download('0.yaml', graphYaml(g.verts, g.lanes, lvl, head));
+  const bad = S.curves.filter(c => ['infeasible', 'hit'].includes(curveInfo(c).status)).length;
+  msg(`Exported ${g.verts.length} vertices, ${g.lanes.length} lanes.${bad ? ` ⚠ ${bad} lane(s) have problems (red).` : ''}`, bad ? 'warn' : 'ok');
+}
+function saveProject() {
+  const params = {}; ['pRmin', 'pMargin', 'pWb', 'pTrack', 'pLen', 'pWid', 'pClear', 'pSpacing', 'pStep', 'res', 'orgX', 'orgY', 'levelName']
+    .forEach(id => params[id] = $(id).value);
+  download('lane_project.json', JSON.stringify({ version: 1, saved: new Date().toISOString(), map: S.map && S.map.name,
+    params, nodes: S.nodes, curves: S.curves, counters: S.counters }, null, 1));
+  msg('Project saved (the map itself is not stored: load it again with the project).', 'ok');
+}
+async function loadProject(file) {
+  try {
+    const p = JSON.parse(await readAs(file, 'text'));
+    Object.entries(p.params || {}).forEach(([id, v]) => { if ($(id)) $(id).value = v; });
+    snapshot();
+    S.nodes = p.nodes || []; S.curves = p.curves || []; S.counters = p.counters || { id: 1, dock: 0, node: 0 };
+    S.active = null; cache.clear(); onMapFields(); onParams(); updateSel();
+    msg(`Project loaded (${S.curves.length} lanes)${p.map ? `; map was ${p.map}` : ''}.`, 'ok');
+  } catch (e) { msg('Could not read project: ' + e.message, 'bad'); }
+}
+
+/* ---------------- input ---------------- */
+function evPos(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [px, py] = evPos(e), w = s2w(px, py), f = Math.pow(1.0015, -e.deltaY);
+  S.view.sc = Math.min(2000, Math.max(2, S.view.sc * f));
+  S.view.ox = px - w.x * S.view.sc; S.view.oy = py + w.y * S.view.sc; draw();
+}, { passive: false });
+cv.addEventListener('mousedown', e => {
+  const [px, py] = evPos(e), w = s2w(px, py);
+  if (e.button === 1 || e.button === 2) { S.pan = { px, py, ox: S.view.ox, oy: S.view.oy }; return; }
+  if (e.button !== 0) return;
+  if (S.mode === 'dock') {
+    S.dockDrag = { x: w.x, y: w.y, yaw: num('dockYaw', 0) / DEG, sx: px, sy: py }; draw(); return;
+  }
+  const hit = pickNode(px, py);
+  if (hit) { S.active = hit.id; updateSel(); msg(`Drawing from ${hit.name}.`); draw(); return; }
+  if (!S.active) { msg('Click a dock or node first (or place a dock).', 'warn'); return; }
+  const t = previewTarget(); if (t) addLane(t); draw();
+});
+window.addEventListener('mousemove', e => {
+  const [px, py] = evPos(e);
+  if (S.pan) { S.view.ox = S.pan.ox + px - S.pan.px; S.view.oy = S.pan.oy + py - S.pan.py; draw(); return; }
+  if (e.target !== cv && !S.dockDrag) return;
+  S.shift = e.shiftKey;
+  S.mouse = s2w(px, py);
+  $('stPos').textContent = `x ${S.mouse.x.toFixed(3)}  y ${S.mouse.y.toFixed(3)} m`;
+  if (S.dockDrag) {
+    const d = S.dockDrag;
+    if (Math.hypot(px - d.sx, py - d.sy) > 6) {
+      let yaw = Math.atan2(-(py - d.sy), px - d.sx);
+      if (e.shiftKey) yaw = Math.round(yaw * DEG / 15) * 15 / DEG;
+      d.yaw = yaw;
+    }
+  }
+  draw();
+});
+window.addEventListener('mouseup', e => {
+  if (S.pan) { S.pan = null; return; }
+  if (S.dockDrag && e.button === 0) { const d = S.dockDrag; S.dockDrag = null; addDock(d.x, d.y, d.yaw); draw(); }
+});
+cv.addEventListener('mouseleave', () => { if (!S.dockDrag) { S.mouse = null; draw(); } });
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'Shift') { S.shift = true; draw(); }
+  else if (e.key === 'Escape') { S.active = null; S.dockDrag = null; updateSel(); msg('Stopped drawing. Click a node to continue.'); draw(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteLast(); draw(); }
+  else if (e.key.toLowerCase() === 'd') setMode('dock');
+  else if (e.key.toLowerCase() === 'l') setMode('lane');
+});
+window.addEventListener('keyup', e => { if (e.key === 'Shift') { S.shift = false; draw(); } });
+
+$('mapFiles').addEventListener('change', e => loadMapFiles(e.target.files).catch(err => msg('Map load failed: ' + err.message, 'bad')));
+['res', 'orgX', 'orgY'].forEach(id => $(id).addEventListener('change', onMapFields));
+['pRmin', 'pMargin', 'pWb', 'pTrack', 'pLen', 'pWid', 'pClear', 'pSpacing', 'pStep'].forEach(id => $(id).addEventListener('input', onParams));
+$('fitBtn').onclick = fitMap;
+$('gridBtn').onclick = () => { S.grid = !S.grid; $('gridBtn').classList.toggle('on', S.grid); draw(); };
+$('modeDock').onclick = () => setMode('dock');
+$('modeLane').onclick = () => setMode('lane');
+$('undoBtn').onclick = undo;
+$('delBtn').onclick = () => { deleteLast(); draw(); };
+$('clearBtn').onclick = () => { if (!S.nodes.length) return; snapshot(); S.nodes = []; S.curves = []; S.active = null;
+  S.counters = { id: 1, dock: 0, node: 0 }; cache.clear(); updateSel(); draw(); msg('Cleared (Ctrl+Z to undo).'); };
+$('selName').addEventListener('change', e => { const n = nodeById(S.active); if (n) { snapshot(); n.name = e.target.value.trim() || n.name; updateSel(); draw(); } });
+$('selYaw').addEventListener('change', e => { const n = nodeById(S.active); if (n && n.kind === 'dock') { snapshot(); n.yaw = num('selYaw', 0) / DEG; S.ver++; updateSel(); draw(); } });
+$('exportBtn').onclick = exportYaml;
+$('saveBtn').onclick = saveProject;
+$('loadBtn').onclick = () => $('projFile').click();
+$('projFile').addEventListener('change', e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; });
+$('graphFile').addEventListener('change', e => { if (e.target.files[0]) loadGraphFile(e.target.files[0]); e.target.value = ''; });
+['cPref', 'cStraight'].forEach(id => $(id).addEventListener('change', runConvert));
+$('cOrig').addEventListener('change', draw);
+$('convExport').onclick = exportConverted;
+$('convClear').onclick = () => { S.convSrc = null; S.conv = null; $('convInfo').textContent = 'No graph loaded.'; $('convList').innerHTML = ''; draw(); };
+new ResizeObserver(resize).observe($('wrap'));
+
+onParams(); fitMap(); setMode('lane');
+msg('Load a map, then place a dock (D).');
+</script>
+</body>
+</html>

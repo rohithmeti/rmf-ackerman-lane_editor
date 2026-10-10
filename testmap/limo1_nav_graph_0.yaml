@@ -1,0 +1,628 @@
+building_name: warehousermf
+doors: {}
+levels:
+  L1:
+    lanes:
+    - - 0
+      - 1
+      - {is_bidirectional: false}
+    - - 1
+      - 2
+      - {is_bidirectional: false}
+    - - 2
+      - 3
+      - {is_bidirectional: false}
+    - - 4
+      - 5
+      - {is_bidirectional: false}
+    - - 6
+      - 7
+      - {is_bidirectional: false}
+    - - 7
+      - 8
+      - {is_bidirectional: false}
+    - - 9
+      - 10
+      - {is_bidirectional: false}
+    - - 10
+      - 11
+      - {is_bidirectional: false}
+    - - 11
+      - 12
+      - {is_bidirectional: false}
+    - - 12
+      - 13
+      - {is_bidirectional: false}
+    - - 13
+      - 14
+      - {is_bidirectional: false}
+    - - 14
+      - 15
+      - {is_bidirectional: false}
+    - - 15
+      - 16
+      - {is_bidirectional: false}
+    - - 17
+      - 18
+      - {is_bidirectional: false}
+    - - 18
+      - 19
+      - {is_bidirectional: false}
+    - - 19
+      - 20
+      - {is_bidirectional: false}
+    - - 21
+      - 22
+      - {is_bidirectional: false}
+    - - 22
+      - 23
+      - {is_bidirectional: false}
+    - - 23
+      - 19
+      - {is_bidirectional: false}
+    - - 18
+      - 24
+      - {is_bidirectional: false}
+    - - 24
+      - 25
+      - {is_bidirectional: false}
+    - - 25
+      - 26
+      - {is_bidirectional: false}
+    - - 27
+      - 28
+      - {is_bidirectional: false}
+    - - 28
+      - 29
+      - {is_bidirectional: false}
+    - - 29
+      - 17
+      - {is_bidirectional: false}
+    - - 9
+      - 30
+      - {is_bidirectional: false}
+    - - 30
+      - 31
+      - {is_bidirectional: false}
+    - - 31
+      - 32
+      - {is_bidirectional: false}
+    - - 5
+      - 33
+      - {}
+    - - 33
+      - 5
+      - {}
+    - - 33
+      - 34
+      - {}
+    - - 34
+      - 33
+      - {}
+    - - 35
+      - 36
+      - {}
+    - - 36
+      - 35
+      - {}
+    - - 3
+      - 21
+      - {is_bidirectional: false}
+    - - 21
+      - 26
+      - {is_bidirectional: false}
+    - - 26
+      - 27
+      - {is_bidirectional: false}
+    - - 27
+      - 32
+      - {is_bidirectional: false}
+    - - 32
+      - 6
+      - {is_bidirectional: false}
+    - - 7
+      - 31
+      - {is_bidirectional: false}
+    - - 31
+      - 28
+      - {is_bidirectional: false}
+    - - 28
+      - 25
+      - {is_bidirectional: false}
+    - - 25
+      - 22
+      - {is_bidirectional: false}
+    - - 22
+      - 2
+      - {is_bidirectional: false}
+    - - 1
+      - 23
+      - {is_bidirectional: false}
+    - - 23
+      - 24
+      - {is_bidirectional: false}
+    - - 24
+      - 29
+      - {is_bidirectional: false}
+    - - 29
+      - 30
+      - {is_bidirectional: false}
+    - - 30
+      - 8
+      - {is_bidirectional: false}
+    - - 8
+      - 9
+      - {is_bidirectional: false}
+    - - 2
+      - 37
+      - {}
+    - - 37
+      - 2
+      - {}
+    - - 3
+      - 38
+      - {}
+    - - 38
+      - 3
+      - {}
+    - - 20
+      - 0
+      - {is_bidirectional: false}
+    - - 9
+      - 39
+      - {is_bidirectional: false}
+    - - 39
+      - 17
+      - {is_bidirectional: false}
+    - - 16
+      - 39
+      - {is_bidirectional: false}
+    - - 20
+      - 40
+      - {is_bidirectional: false}
+    - - 40
+      - 41
+      - {is_bidirectional: false}
+    - - 41
+      - 42
+      - {is_bidirectional: false}
+    - - 42
+      - 43
+      - {is_bidirectional: false}
+    - - 43
+      - 44
+      - {is_bidirectional: false}
+    - - 45
+      - 46
+      - {is_bidirectional: false}
+    - - 46
+      - 47
+      - {is_bidirectional: false}
+    - - 47
+      - 48
+      - {is_bidirectional: false}
+    - - 48
+      - 49
+      - {is_bidirectional: false}
+    - - 49
+      - 0
+      - {is_bidirectional: false}
+    - - 40
+      - 49
+      - {}
+    - - 49
+      - 40
+      - {}
+    - - 49
+      - 50
+      - {}
+    - - 50
+      - 49
+      - {}
+    - - 41
+      - 48
+      - {}
+    - - 48
+      - 41
+      - {}
+    - - 48
+      - 51
+      - {}
+    - - 51
+      - 48
+      - {}
+    - - 42
+      - 47
+      - {}
+    - - 47
+      - 42
+      - {}
+    - - 47
+      - 52
+      - {}
+    - - 52
+      - 47
+      - {}
+    - - 43
+      - 46
+      - {}
+    - - 46
+      - 43
+      - {}
+    - - 46
+      - 53
+      - {}
+    - - 53
+      - 46
+      - {}
+    - - 44
+      - 45
+      - {}
+    - - 45
+      - 44
+      - {}
+    - - 45
+      - 54
+      - {}
+    - - 54
+      - 45
+      - {}
+    - - 3
+      - 55
+      - {is_bidirectional: false}
+    - - 55
+      - 56
+      - {is_bidirectional: false}
+    - - 57
+      - 58
+      - {is_bidirectional: false}
+    - - 58
+      - 21
+      - {is_bidirectional: false}
+    - - 26
+      - 59
+      - {is_bidirectional: false}
+    - - 59
+      - 60
+      - {is_bidirectional: false}
+    - - 61
+      - 62
+      - {is_bidirectional: false}
+    - - 62
+      - 27
+      - {is_bidirectional: false}
+    - - 32
+      - 63
+      - {is_bidirectional: false}
+    - - 63
+      - 64
+      - {is_bidirectional: false}
+    - - 65
+      - 66
+      - {is_bidirectional: false}
+    - - 66
+      - 6
+      - {is_bidirectional: false}
+    - - 66
+      - 63
+      - {is_bidirectional: false}
+    - - 63
+      - 62
+      - {is_bidirectional: false}
+    - - 62
+      - 59
+      - {is_bidirectional: false}
+    - - 59
+      - 58
+      - {is_bidirectional: false}
+    - - 58
+      - 55
+      - {is_bidirectional: false}
+    - - 56
+      - 57
+      - {is_bidirectional: false}
+    - - 57
+      - 60
+      - {is_bidirectional: false}
+    - - 60
+      - 61
+      - {is_bidirectional: false}
+    - - 61
+      - 64
+      - {is_bidirectional: false}
+    - - 64
+      - 65
+      - {is_bidirectional: false}
+    - - 67
+      - 68
+      - {is_bidirectional: false}
+    - - 68
+      - 69
+      - {is_bidirectional: false}
+    - - 69
+      - 70
+      - {is_bidirectional: false}
+    - - 70
+      - 71
+      - {is_bidirectional: false}
+    - - 71
+      - 72
+      - {is_bidirectional: false}
+    - - 72
+      - 73
+      - {is_bidirectional: false}
+    - - 73
+      - 35
+      - {is_bidirectional: false}
+    - - 35
+      - 74
+      - {is_bidirectional: false}
+    - - 74
+      - 75
+      - {is_bidirectional: false}
+    - - 75
+      - 4
+      - {is_bidirectional: false}
+    - - 5
+      - 65
+      - {is_bidirectional: false}
+    - - 56
+      - 71
+      - {is_bidirectional: false}
+    - - 73
+      - 70
+      - {is_bidirectional: false}
+    - - 70
+      - 57
+      - {is_bidirectional: false}
+    - - 60
+      - 69
+      - {is_bidirectional: false}
+    - - 69
+      - 35
+      - {is_bidirectional: false}
+    - - 74
+      - 68
+      - {is_bidirectional: false}
+    - - 68
+      - 61
+      - {is_bidirectional: false}
+    - - 64
+      - 67
+      - {is_bidirectional: false}
+    - - 67
+      - 75
+      - {is_bidirectional: false}
+    - - 5
+      - 67
+      - {is_bidirectional: false}
+    vertices:
+    - - -0.22538227
+      - 1.589219
+      - {name: ''}
+    - - -0.5959915000000001
+      - 0.536162
+      - {is_holding_point: true, name: '1'}
+    - - -0.6614203500000001
+      - -0.6038407700000001
+      - {is_holding_point: true, name: '7'}
+    - - -0.6381984000000002
+      - -1.7814801
+      - {is_holding_point: true, name: '13'}
+    - - -6.163716300000001
+      - -6.7307243
+      - {is_holding_point: true, name: '41'}
+    - - -6.2063694
+      - -5.525663000000001
+      - {is_holding_point: true, name: '36'}
+    - - -6.194186000000001
+      - -1.8932691
+      - {is_holding_point: true, name: '18'}
+    - - -6.1631947
+      - -0.5676333
+      - {is_holding_point: true, name: '12'}
+    - - -6.1387057
+      - 0.54225546
+      - {is_holding_point: true, name: '6'}
+    - - -5.043589000000001
+      - 1.5174482000000002
+      - {name: ''}
+    - - -4.956022000000001
+      - 2.6252217000000004
+      - {name: ''}
+    - - -5.033985000000001
+      - 3.2237554000000004
+      - {name: ''}
+    - - -5.586416700000001
+      - 3.3684988
+      - {name: ''}
+    - - -5.4908857
+      - 4.355808
+      - {is_holding_point: true, name: HELLO_PATIL_UNCLE}
+    - - -4.5311522
+      - 4.527684700000001
+      - {name: ''}
+    - - -4.4753704
+      - 3.4409
+      - {name: ''}
+    - - -4.476902
+      - 2.4935758000000003
+      - {name: ''}
+    - - -3.9430013000000006
+      - 1.5083077
+      - {name: ''}
+    - - -2.8131611000000003
+      - 1.4859807
+      - {name: ''}
+    - - -1.7435349
+      - 1.506791
+      - {name: ''}
+    - - -0.91808
+      - 1.5400178000000002
+      - {name: ''}
+    - - -1.8349264000000003
+      - -1.7919778000000002
+      - {is_holding_point: true, name: '14'}
+    - - -1.8080528000000002
+      - -0.6096560000000001
+      - {is_holding_point: true, name: '8'}
+    - - -1.7373343000000003
+      - 0.51500106
+      - {is_holding_point: true, name: '2'}
+    - - -2.8214576000000005
+      - 0.5123404000000001
+      - {is_holding_point: true, name: '3'}
+    - - -2.8759873000000002
+      - -0.58884126
+      - {is_holding_point: true, name: '9'}
+    - - -2.9398090000000003
+      - -1.8275138
+      - {is_holding_point: true, name: '15'}
+    - - -4.1123285
+      - -1.863395
+      - {is_holding_point: true, name: '16'}
+    - - -4.029377
+      - -0.6135744000000001
+      - {is_holding_point: true, name: '10'}
+    - - -3.997853
+      - 0.5160439
+      - {is_holding_point: true, name: '4'}
+    - - -5.1364775
+      - 0.5099839
+      - {is_holding_point: true, name: '5'}
+    - - -5.145074000000001
+      - -0.5734271
+      - {is_holding_point: true, name: '11'}
+    - - -5.201240500000001
+      - -1.850998
+      - {is_holding_point: true, name: '17'}
+    - - -6.955226
+      - -5.8843884
+      - {name: ''}
+    - - -7.602146000000001
+      - -5.876635
+      - {is_holding_point: true, name: SLOWPOK}
+    - - -3.003583
+      - -6.7149777
+      - {is_holding_point: true, name: '38'}
+    - - -2.7950015
+      - -7.654627
+      - {is_holding_point: true, name: DARKRAI}
+    - - -0.067214966
+      - -0.9791463600000001
+      - {is_holding_point: true, name: PIKACHU}
+    - - -0.06501222
+      - -2.0167572000000002
+      - {is_holding_point: true, name: CHARMENDER}
+    - - -4.404498
+      - 1.4978898000000003
+      - {name: ''}
+    - - -1.0390356
+      - 2.8817413
+      - {name: ''}
+    - - -1.0620878000000002
+      - 3.6935213
+      - {name: ''}
+    - - -1.0918493
+      - 4.527753400000001
+      - {name: ''}
+    - - -1.0898378
+      - 5.375031
+      - {name: ''}
+    - - -1.0977737
+      - 6.250503000000001
+      - {name: ''}
+    - - -0.5028621
+      - 6.2464275
+      - {name: ''}
+    - - -0.51008874
+      - 5.397684
+      - {name: ''}
+    - - -0.50452054
+      - 4.5867395
+      - {name: ''}
+    - - -0.46855912000000005
+      - 3.7361417000000006
+      - {name: ''}
+    - - -0.45036787
+      - 2.9055102
+      - {name: ''}
+    - - 0.0
+      - 2.9000000000000004
+      - {is_charger: true, is_holding_point: true, is_parking_spot: true, name: limo1_dock}
+    - - 0.0
+      - 3.75
+      - {is_charger: true, is_holding_point: true, is_parking_spot: true, name: limo2_dock}
+    - - 0.0
+      - 4.6000000000000005
+      - {is_charger: true, is_holding_point: true, is_parking_spot: true, name: hiwonder1_dock}
+    - - 0.0
+      - 5.4
+      - {is_charger: true, is_holding_point: true, is_parking_spot: true, name: hiwonder2_dock}
+    - - 0.0
+      - 6.25
+      - {is_charger: true, is_holding_point: true, is_parking_spot: true, name: turtlebot_dock}
+    - - -0.65531176
+      - -3.0831676
+      - {is_holding_point: true, name: '19'}
+    - - -0.6749353400000001
+      - -4.363701
+      - {is_holding_point: true, name: '25'}
+    - - -1.8703263
+      - -4.3537545
+      - {is_holding_point: true, name: '26'}
+    - - -1.8353331000000002
+      - -3.0881002
+      - {is_holding_point: true, name: '20'}
+    - - -2.9485831000000005
+      - -3.0759776
+      - {is_holding_point: true, name: '21'}
+    - - -2.987319
+      - -4.3227606
+      - {is_holding_point: true, name: '27'}
+    - - -4.107197
+      - -4.3318996
+      - {is_holding_point: true, name: '28'}
+    - - -4.1143236
+      - -3.0960517000000003
+      - {is_holding_point: true, name: '22'}
+    - - -5.177559
+      - -3.0827572
+      - {is_holding_point: true, name: '23'}
+    - - -5.1978480000000005
+      - -4.3191257
+      - {is_holding_point: true, name: '29'}
+    - - -6.1596513
+      - -4.352794
+      - {is_holding_point: true, name: '30'}
+    - - -6.1790915
+      - -3.0905604000000007
+      - {is_holding_point: true, name: '24'}
+    - - -5.228405000000001
+      - -5.535571600000001
+      - {is_holding_point: true, name: '35'}
+    - - -4.049095
+      - -5.501901
+      - {is_holding_point: true, name: '34'}
+    - - -2.9937406000000006
+      - -5.4883256
+      - {is_holding_point: true, name: <Unnamed>}
+    - - -1.8859042
+      - -5.5419426
+      - {is_holding_point: true, name: '32'}
+    - - -0.7317426
+      - -5.5357194
+      - {is_holding_point: true, name: '31'}
+    - - -0.7040100000000001
+      - -6.737275
+      - {is_holding_point: true, name: '42'}
+    - - -1.9052083
+      - -6.716815
+      - {is_holding_point: true, name: '37'}
+    - - -4.0821633
+      - -6.68463
+      - {is_holding_point: true, name: '39'}
+    - - -5.231121000000001
+      - -6.6932673
+      - {is_holding_point: true, name: '40'}
+lifts: {}
