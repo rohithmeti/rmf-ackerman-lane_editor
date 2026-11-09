@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+gazebo_out_*/
+registration.json

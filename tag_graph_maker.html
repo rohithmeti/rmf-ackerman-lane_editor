@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AprilTag Graph Maker</title>
+<style>
+  :root { --bg:#f4f5f7; --panel:#ffffff; --text:#1d2330; --muted:#5b6475; --line:#d9dde5; --accent:#2f6fde; --ok:#1f9d55; --bad:#d64545; --warn:#d98a00; --canvas:#8a8f98; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#15181e; --panel:#1d2129; --text:#e6e9ef; --muted:#9aa3b2; --line:#2e3440; --accent:#6b9cff; --ok:#3ccf7d; --bad:#ff6b6b; --warn:#ffb547; --canvas:#3a3f48; } }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #app { display:flex; height:100vh; }
+  #side { width:350px; min-width:350px; overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:10px 12px 40px; }
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #wrap { flex:1; position:relative; background:var(--canvas); overflow:hidden; }
+  canvas { display:block; position:absolute; inset:0; }
+  #status { padding:4px 10px; border-top:1px solid var(--line); background:var(--panel); display:flex; gap:16px; white-space:nowrap; overflow:hidden; font-variant-numeric:tabular-nums; }
+  #msg.bad{color:var(--bad)} #msg.ok{color:var(--ok)} #msg.warn{color:var(--warn)}
+  h1 { font-size:16px; margin:2px 0 4px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:14px 0 6px; border-bottom:1px solid var(--line); padding-bottom:3px; }
+  .row { display:flex; align-items:center; gap:6px; margin:4px 0; } .row label { flex:1; }
+  .row input[type=number], .row input[type=text] { width:84px; padding:3px 5px; border:1px solid var(--line); border-radius:4px; background:var(--bg); color:var(--text); font:inherit; }
+  .unit { width:22px; color:var(--muted); font-size:12px; }
+  .info { color:var(--muted); font-size:12px; margin:3px 0; } .info b { color:var(--text); }
+  button { font:inherit; padding:5px 9px; border:1px solid var(--line); border-radius:5px; background:var(--bg); color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--accent); } button.on { background:var(--accent); color:#fff; border-color:var(--accent); } button.big { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:11px; }
+  ol.help { color:var(--muted); font-size:12px; padding-left:18px; margin:4px 0; } ol.help li { margin:3px 0; }
+  .ref { display:grid; grid-template-columns:auto 1fr 1fr; gap:4px; align-items:center; margin:3px 0; font-size:12px; }
+  .ref input { width:100%; padding:2px 4px; border:1px solid var(--line); border-radius:4px; background:var(--bg); color:var(--text); font:inherit; }
+  a { color:var(--accent); } input[type=file] { font-size:12px; max-width:100%; }
+  .good { color:var(--ok); } .badtxt { color:var(--bad); } .warntxt { color:var(--warn); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1>AprilTag Graph Maker</h1>
+    <div class="info">Load a map, get an <b>orthogonal</b> tag graph (nodes = AprilTags, lanes = edges), and export the coordinates for the simulator. Differential-drive robots: they stop at every tag and spin on the spot. &nbsp;<a href="README_TAG_GRAPH.md" target="_blank">Guide</a> · <a href="lane_maker.html">Ackermann lane maker</a></div>
+
+    <h2>1 · Map</h2>
+    <input type="file" id="mapFiles" multiple accept=".yaml,.yml,.pgm,.png,.jpg,.jpeg">
+    <div class="info">Pick the map <b>.yaml</b> and its image (<b>.pgm</b>/.png) together. <button id="demoBtn" type="button">Load demo map</button></div>
+    <div class="row"><label>Resolution</label><input type="number" id="res" step="0.001" value="0.05"><span class="unit">m</span></div>
+    <div class="row"><label>Map origin x (lower-left)</label><input type="number" id="orgX" step="0.01" value="0"><span class="unit">m</span></div>
+    <div class="row"><label>Map origin y (lower-left)</label><input type="number" id="orgY" step="0.01" value="0"><span class="unit">m</span></div>
+    <div class="row"><label>Free if pixel at least</label><input type="number" id="freeGray" step="1" value="240" min="0" max="255"><span class="unit">/255</span></div>
+    <div class="info" id="mapInfo">No map loaded. Grey ("unknown") pixels count as blocked.</div>
+    <div class="btns"><button id="fitBtn">Fit map</button><button id="gridBtn" class="on">1 m grid</button><button id="clrBtn">Clearance shading</button><button id="dropBtn">Dropped spots ✕</button></div>
+
+    <h2>2 · Robot (differential drive)</h2>
+    <div class="row"><label>Body length</label><input type="number" id="rLen" step="0.01" value="0.60"><span class="unit">m</span></div>
+    <div class="row"><label>Width incl. wheels</label><input type="number" id="rWid" step="0.01" value="0.515"><span class="unit">m</span></div>
+    <div class="row"><label>Safety margin</label><input type="number" id="rMar" step="0.01" value="0.15"><span class="unit">m</span></div>
+    <div class="info" id="rInfo"></div>
+
+    <h2>3 · Lanes</h2>
+    <div class="row"><label>Tag spacing (open floor)</label><input type="number" id="lSp" step="0.1" value="2.0"><span class="unit">m</span></div>
+    <div class="row"><label>Min. gap between parallel lanes</label><input type="number" id="lSep" step="0.1" value="1.0"><span class="unit">m</span></div>
+    <div class="row"><label>Shortest aisle that gets a lane</label><input type="number" id="lAis" step="0.1" value="2.5"><span class="unit">m</span></div>
+    <div class="row"><label>Longest lane (extra tags above)</label><input type="number" id="lMax" step="0.1" value="3.5"><span class="unit">m</span></div>
+    <div class="row"><label>Area x from / to</label><input type="number" id="bx0" step="0.1"><input type="number" id="bx1" step="0.1"></div>
+    <div class="row"><label>Area y from / to</label><input type="number" id="by0" step="0.1"><input type="number" id="by1" step="0.1"></div>
+    <div class="btns"><button id="autoBtn" class="big">Auto layout</button><button id="clearBtn">Clear lanes</button><button id="undoBtn">Undo <kbd>Ctrl+Z</kbd></button><button id="redoBtn">Redo</button></div>
+    <div class="btns" id="tools">
+      <button data-tool="pan" class="on">Pan / inspect <kbd>V</kbd></button>
+      <button data-tool="line">Draw lane <kbd>L</kbd></button>
+      <button data-tool="erase">Erase area <kbd>E</kbd></button>
+      <button data-tool="del">Delete lane <kbd>D</kbd></button>
+      <button data-tool="start">Set tag 1 <kbd>S</kbd></button>
+      <button data-tool="ref">Reference point <kbd>R</kbd></button>
+    </div>
+    <div class="info" id="stats"></div>
+
+    <h2>4 · Simulator frame</h2>
+    <div class="info">The simulator's (0, 0) is usually not the map's (0, 0). world = R(yaw)·map + (dx, dy).</div>
+    <div class="row"><label>dx</label><input type="number" id="fdx" step="0.01" value="0"><span class="unit">m</span></div>
+    <div class="row"><label>dy</label><input type="number" id="fdy" step="0.01" value="0"><span class="unit">m</span></div>
+    <div class="row"><label>yaw</label><input type="number" id="fyaw" step="0.1" value="0"><span class="unit">°</span></div>
+    <div class="info" id="fInfo"></div>
+    <div class="info"><b>Find it:</b> (a) run <code>register_map_to_world.py</code> and load its <b>registration.json</b>:</div>
+    <input type="file" id="regFile" accept=".json">
+    <div class="info">(b) or pick <b>reference points</b> (tool <kbd>R</kbd>): click a landmark on the map, type its coordinates from the simulator (use 2 points for rotation too).</div>
+    <div id="refs"></div>
+    <div class="btns"><button id="solveBtn">Solve frame from points</button><button id="refClr">Remove points</button></div>
+
+    <h2>5 · Tags</h2>
+    <div class="row"><label>First tag id</label><input type="number" id="idStart" step="1" value="0" min="0"><span class="unit"></span></div>
+    <div class="row"><label>Tag size (black square)</label><input type="number" id="tagSize" step="0.01" value="0.20"><span class="unit">m</span></div>
+    <div class="info">Ids go row by row, south to north. Tag 1 (the robot's start) is by default the tag nearest the simulator's origin; use <kbd>S</kbd> and click any tag to choose another. Family 36h11 (ids 0 – 586).
+      Printable tags: <a href="assets/AprilTag_0-20_family36h11.pdf" target="_blank">AprilTag 36h11 PDF (20 pages, as supplied)</a>; a sheet for <i>all</i> your tags is made by <code>export_gazebo.py</code>.</div>
+
+    <h2>6 · Export</h2>
+    <div class="row"><label>Layout name</label><input type="text" id="name" value="my_layout"><span class="unit"></span></div>
+    <div class="btns">
+      <button id="eMap">Tag map · map frame (.yaml)</button>
+      <button id="eWorld">Tag map · simulator frame (.yaml)</button>
+      <button id="eCsv">Coordinates (.csv)</button>
+      <button id="eSdf">Gazebo tags (.sdf block)</button>
+      <button id="eJson" class="big">For Gazebo exporter (.json)</button>
+      <button id="eProj">Save project</button>
+      <button id="lProj" type="button">Load project</button><input type="file" id="projFile" accept=".json" hidden>
+    </div>
+    <div class="info" id="exInfo"></div>
+
+    <h2>How to use</h2>
+    <ol class="help">
+      <li>Load the map. Check the robot size (section 2).</li>
+      <li><b>Auto layout</b> puts a lane along every aisle between racks plus a lattice on open floor. Tags that cannot fit the spot-turn circle or lanes that are too narrow are dropped automatically (red ✕).</li>
+      <li>Fix by hand: <b>Draw lane</b> (press, drag, release: it snaps to horizontal / vertical and to existing nodes), <b>Erase area</b> (drag a rectangle), <b>Delete lane</b>. Lanes can only be horizontal or vertical; every crossing becomes a tag, so lanes never cross mid-lane.</li>
+      <li>Set the simulator frame (section 4), then export. Wheel = zoom, right / middle drag = pan.</li>
+    </ol>
+  </div>
+  <div id="main"><div id="wrap"><canvas id="cv"></canvas></div>
+    <div id="status"><span id="stPos">x — y —</span><span id="stZoom"></span><span id="stCount"></span><span id="msg"></span></div></div>
+</div>
+<script src="lane_math.js"></script>
+<script src="tag_graph_core.js"></script>
+<script>
+'use strict';
+const LM = window.LaneMath, TG = window.TagGraph, $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const S = { map: null, field: null, lines: { v: [], h: [] }, undo: [], redo: [], graph: null, chk: null, rp: null,
+            view: { sc: 40, ox: 300, oy: 300 }, tool: 'pan', mouse: null, drag: null, pan: null, grid: true, shade: false,
+            startPt: null, showDrop: false, refs: [], frame: { dx: 0, dy: 0, yawDeg: 0 }, autoInfo: null };
+const num = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
+function msg(t, c) { const m = $('msg'); m.textContent = t || ''; m.className = c || ''; }
+const f2 = v => (Math.round(v * 100) / 100).toFixed(2);
+
+/* ---------- parameters ---------- */
+function robot() { return TG.robotParams({ length: num('rLen', .6), width: num('rWid', .515), margin: num('rMar', .15) }); }
+function updateRobotInfo() {
+  S.rp = robot(); const r = S.rp;
+  $('rInfo').innerHTML = `Spin-on-the-spot circle <b>${f2(r.rCirc)} m</b> radius → every tag needs <b>${f2(r.nodeClear)} m</b> free around it; lanes need <b>${f2(r.laneClear)} m</b> either side of the centre line.`;
+}
+function frame() { return { dx: num('fdx', 0), dy: num('fdy', 0), yawDeg: num('fyaw', 0) }; }
+function updateFrameInfo() {
+  S.frame = frame(); const o = TG.toMap(S.frame, 0, 0);
+  $('fInfo').innerHTML = `The simulator's origin (0, 0) lies at map <b>(${f2(o.x)}, ${f2(o.y)})</b> m (cross-hair on the map).`;
+}
+
+/* ---------- view ---------- */
+const w2s = (x, y) => [x * S.view.sc + S.view.ox, -y * S.view.sc + S.view.oy];
+const s2w = (px, py) => ({ x: (px - S.view.ox) / S.view.sc, y: -(py - S.view.oy) / S.view.sc });
+function resize() { const r = $('wrap').getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; ctx.setTransform(d, 0, 0, d, 0, 0); draw(); }
+function fitMap() {
+  const r = $('wrap').getBoundingClientRect();
+  if (!S.map) { S.view = { sc: 40, ox: r.width / 2, oy: r.height / 2 }; draw(); return; }
+  const wm = S.map.w * S.map.res, hm = S.map.h * S.map.res, sc = Math.min(r.width / wm, r.height / hm) * 0.95;
+  S.view = { sc, ox: r.width / 2 - (S.map.ox + wm / 2) * sc, oy: r.height / 2 + (S.map.oy + hm / 2) * sc }; draw();
+}
+
+/* ---------- map ---------- */
+const readAs = (file, how) => new Promise((ok, bad) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => bad(fr.error); how === 'text' ? fr.readAsText(file) : how === 'url' ? fr.readAsDataURL(file) : fr.readAsArrayBuffer(file); });
+async function setMapFromBytes(name, meta, imgName, bytes, isPgm, imgUrl) {
+  let w, h, gray;
+  if (isPgm) { const p = LM.parsePGM(bytes); w = p.width; h = p.height; gray = p.data; }
+  else {
+    const im = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = imgUrl; });
+    w = im.naturalWidth; h = im.naturalHeight; const c = document.createElement('canvas'); c.width = w; c.height = h; const cc = c.getContext('2d'); cc.drawImage(im, 0, 0);
+    const d = cc.getImageData(0, 0, w, h).data; gray = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) gray[i] = Math.round(.299 * d[4 * i] + .587 * d[4 * i + 1] + .114 * d[4 * i + 2]);
+  }
+  const img = document.createElement('canvas'); img.width = w; img.height = h; const ic = img.getContext('2d'), id = ic.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = gray[i]; id.data[4 * i + 3] = 255; } ic.putImageData(id, 0, 0);
+  if (meta.resolution) $('res').value = meta.resolution;
+  if (Array.isArray(meta.origin)) { $('orgX').value = meta.origin[0] ?? 0; $('orgY').value = meta.origin[1] ?? 0; }
+  S.map = { name: imgName || name, w, h, gray, img, meta, res: num('res', .05), ox: num('orgX', 0), oy: num('orgY', 0) };
+  S.lines = { v: [], h: [] }; S.undo = []; S.redo = []; S.startPt = null; rebuildField(); setBoundsFromMap(); updateMapInfo(); fitMap();
+  msg(`Map loaded: ${S.map.name} (${w}×${h} px). Press "Auto layout".`, 'ok');
+}
+async function loadMapFiles(files) {
+  const list = [...files], yf = list.find(f => /\.ya?ml$/i.test(f.name)); let meta = {};
+  if (yf) meta = LM.parseMapYaml(await readAs(yf, 'text'));
+  let imf = list.find(f => /\.(pgm|png|jpe?g)$/i.test(f.name) && (!meta.image || f.name === String(meta.image).split('/').pop())) || list.find(f => /\.(pgm|png|jpe?g)$/i.test(f.name));
+  if (!imf) { msg(yf ? `Now also select the image "${meta.image}" together with the .yaml.` : 'No map image selected.', 'warn'); return; }
+  const isPgm = /\.pgm$/i.test(imf.name);
+  await setMapFromBytes(imf.name, meta, imf.name, isPgm ? new Uint8Array(await readAs(imf, 'buf')) : null, isPgm, isPgm ? null : await readAs(imf, 'url'));
+}
+async function loadMapUrl(yamlUrl) {
+  const meta = LM.parseMapYaml(await (await fetch(yamlUrl)).text()), base = yamlUrl.replace(/[^/]*$/, ''), imgUrl = base + String(meta.image).split('/').pop();
+  if (/\.pgm$/i.test(imgUrl)) await setMapFromBytes(imgUrl.split('/').pop(), meta, null, new Uint8Array(await (await fetch(imgUrl)).arrayBuffer()), true);
+  else await setMapFromBytes(imgUrl.split('/').pop(), meta, null, null, false, imgUrl);
+}
+function rebuildField() { if (!S.map) { S.field = null; return; } S.map.res = num('res', .05); S.map.ox = num('orgX', 0); S.map.oy = num('orgY', 0); S.field = TG.buildField(S.map, num('freeGray', 240)); refresh(); }
+function setBoundsFromMap() { const m = S.map, i = 0.6; $('bx0').value = f2(m.ox + i); $('bx1').value = f2(m.ox + m.w * m.res - i); $('by0').value = f2(m.oy + i); $('by1').value = f2(m.oy + m.h * m.res - i); }
+function updateMapInfo() { const m = S.map; if (!m) return; $('mapInfo').innerHTML = `<b>${m.name}</b> · ${m.w}×${m.h} px = ${f2(m.w * m.res)}×${f2(m.h * m.res)} m · origin = lower-left corner (${f2(m.ox)}, ${f2(m.oy)}) m`; }
+
+/* ---------- graph ---------- */
+let refreshTimer = null;
+function refresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(doRefresh, 30); }
+function doRefresh() {
+  updateRobotInfo();
+  const opts = { maxEdge: num('lMax', 3.5), keepLargestOnly: true };
+  const g = TG.derive(S.lines, S.field, S.rp, opts);
+  let startIdx = null;
+  const fr = frame(), implicit = !S.startPt && (fr.dx || fr.dy || fr.yawDeg);                  // no tag chosen: tag 1 = the one nearest the simulator's origin
+  const tgt = S.startPt || (implicit ? TG.toMap(fr, 0, 0) : null);
+  if (tgt && g.nodes.length) { let b = Infinity; g.nodes.forEach((n, i) => { const d = Math.hypot(n.x - tgt.x, n.y - tgt.y); if (d < b) { b = d; startIdx = i; } }); if (!implicit && b > 0.3) startIdx = null; }
+  TG.assignIds(g, { startId: Math.max(0, Math.round(num('idStart', 0))), startNodeIndex: startIdx, startTag: Math.max(0, Math.round(num('idStart', 0))) + 1 });
+  S.graph = g; S.chk = TG.check(g, num('lSep', 1.0) * 0.9); updateStats(); draw();
+}
+function updateStats() {
+  const g = S.graph, c = S.chk;
+  if (!g) return;
+  const issues = [];
+  if (c.diagonal) issues.push(`<span class="badtxt">${c.diagonal} diagonal lane(s)</span>`);
+  if (c.crossings) issues.push(`<span class="badtxt">${c.crossings} crossing(s)</span>`);
+  if (c.nodesOnLane) issues.push(`<span class="badtxt">${c.nodesOnLane} tag(s) on someone else's lane</span>`);
+  if (c.tooClose.length) issues.push(`<span class="warntxt">parallel lanes closer than the gap: ${c.tooClose.slice(0, 4).join('; ')}${c.tooClose.length > 4 ? ' …' : ''}</span>`);
+  if (g.nodes.length > 587) issues.push(`<span class="badtxt">${g.nodes.length} tags, but family 36h11 has only 587 ids</span>`);
+  $('stats').innerHTML = `<b>${g.nodes.length}</b> tags · <b>${g.edges.length}</b> lanes · ${S.lines.v.length} vertical + ${S.lines.h.length} horizontal lines<br>` +
+    `Dropped: ${g.dropped.nodes.length} spots (too close to walls / no room to spin) · ${g.dropped.edges.length} lanes too narrow · ${g.isolated} cut-off tags<br>` +
+    (issues.length ? issues.join('<br>') : `<span class="good">✔ all lanes horizontal or vertical · no crossings · no tag on a foreign lane</span>`);
+  $('stCount').textContent = `${g.nodes.length} tags · ${g.edges.length} lanes`;
+}
+
+/* ---------- history + editing ---------- */
+const snap = () => JSON.stringify({ lines: S.lines, startPt: S.startPt });
+function pushUndo() { S.undo.push(snap()); if (S.undo.length > 200) S.undo.shift(); S.redo = []; }
+function restore(s) { const o = JSON.parse(s); S.lines = o.lines; S.startPt = o.startPt; refresh(); }
+function undo() { const s = S.undo.pop(); if (!s) return msg('Nothing to undo.'); S.redo.push(snap()); restore(s); msg('Undone.'); }
+function redo() { const s = S.redo.pop(); if (!s) return msg('Nothing to redo.'); S.undo.push(snap()); restore(s); msg('Redone.'); }
+function autoLayout() {
+  if (!S.field) return msg('Load a map first.', 'warn');
+  const b = { x0: num('bx0', 0), x1: num('bx1', 0), y0: num('by0', 0), y1: num('by1', 0) };
+  pushUndo(); S.rp = robot();
+  const L = TG.autoLines(S.field, b, S.rp, { spacing: num('lSp', 2), minSep: num('lSep', 1), minAisle: num('lAis', 2.5) });
+  S.lines = { v: L.v, h: L.h }; S.autoInfo = L.info; doRefresh();
+  msg(`Auto layout: ${S.graph.nodes.length} tags, ${S.graph.edges.length} lanes (${L.info.aisleX}+${L.info.aisleY} aisle lines found).`, 'ok');
+}
+function addLine(a, b) {
+  const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+  if (Math.max(dx, dy) < 0.3) return;
+  pushUndo();
+  if (dx >= dy) S.lines.h.push({ y: a.y, x0: Math.min(a.x, b.x), x1: Math.max(a.x, b.x) });
+  else S.lines.v.push({ x: a.x, y0: Math.min(a.y, b.y), y1: Math.max(a.y, b.y) });
+  doRefresh(); msg(dx >= dy ? 'Horizontal lane added.' : 'Vertical lane added.', 'ok');
+}
+function eraseRect(r) {
+  pushUndo(); const x0 = Math.min(r.a.x, r.b.x), x1 = Math.max(r.a.x, r.b.x), y0 = Math.min(r.a.y, r.b.y), y1 = Math.max(r.a.y, r.b.y), minLen = 0.2;
+  const cut = (lo, hi, c0, c1) => { const out = []; if (lo < c0) out.push([lo, Math.min(hi, c0)]); if (hi > c1) out.push([Math.max(lo, c1), hi]); return out.filter(p => p[1] - p[0] >= minLen); };
+  const nv = [], nh = [];
+  S.lines.v.forEach(l => { if (l.x < x0 || l.x > x1 || l.y1 < y0 || l.y0 > y1) nv.push(l); else cut(l.y0, l.y1, y0, y1).forEach(([a, b]) => nv.push({ x: l.x, y0: a, y1: b })); });
+  S.lines.h.forEach(l => { if (l.y < y0 || l.y > y1 || l.x1 < x0 || l.x0 > x1) nh.push(l); else cut(l.x0, l.x1, x0, x1).forEach(([a, b]) => nh.push({ y: l.y, x0: a, x1: b })); });
+  S.lines = { v: nv, h: nh }; doRefresh(); msg('Area erased.', 'ok');
+}
+function distToLine(p) {
+  let best = null, bd = 9 / S.view.sc;
+  S.lines.v.forEach((l, i) => { if (p.y >= l.y0 - bd && p.y <= l.y1 + bd) { const d = Math.abs(p.x - l.x); if (d < bd) { bd = d; best = { kind: 'v', i }; } } });
+  S.lines.h.forEach((l, i) => { if (p.x >= l.x0 - bd && p.x <= l.x1 + bd) { const d = Math.abs(p.y - l.y); if (d < bd) { bd = d; best = { kind: 'h', i }; } } });
+  return best;
+}
+function nodeAt(p) { let b = null, bd = 11 / S.view.sc; (S.graph ? S.graph.nodes : []).forEach((n, i) => { const d = Math.hypot(n.x - p.x, n.y - p.y); if (d < bd) { bd = d; b = i; } }); return b; }
+function snapPoint(p) {                                                    // to nodes, then to existing line coordinates, then to the 5 cm grid
+  const ni = nodeAt(p); if (ni !== null) return { x: S.graph.nodes[ni].x, y: S.graph.nodes[ni].y };
+  let x = p.x, y = p.y; const tol = 8 / S.view.sc;
+  S.lines.v.forEach(l => { if (Math.abs(l.x - x) < tol) x = l.x; }); S.lines.h.forEach(l => { if (Math.abs(l.y - y) < tol) y = l.y; });
+  if (x === p.x) x = Math.round(x / 0.05) * 0.05; if (y === p.y) y = Math.round(y / 0.05) * 0.05;
+  return { x, y };
+}
+function setTool(t) { S.tool = t; document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); cv.style.cursor = t === 'pan' ? 'default' : 'crosshair';
+  msg({ pan: 'Pan / inspect: drag to move the view, click a tag to see its coordinates.', line: 'Draw lane: press, drag, release (snaps horizontal / vertical).', erase: 'Erase area: drag a rectangle.', del: 'Delete lane: click a lane.', start: 'Set tag 1: click a tag (the robot starts there).', ref: 'Reference point: click a landmark on the map.' }[t]); draw(); }
+
+/* ---------- frame calibration ---------- */
+function renderRefs() {
+  const box = $('refs'); box.innerHTML = '';
+  S.refs.forEach((r, i) => {
+    const d = document.createElement('div'); d.className = 'ref';
+    d.innerHTML = `<span>P${i + 1} map (${f2(r.map.x)}, ${f2(r.map.y)}) → world</span>`;
+    ['x', 'y'].forEach(k => { const inp = document.createElement('input'); inp.type = 'number'; inp.step = '0.01'; inp.placeholder = k; inp.value = r.world ? r.world[k] : ''; inp.oninput = () => { r.world = r.world || {}; r.world[k] = parseFloat(inp.value); }; d.appendChild(inp); });
+    box.appendChild(d);
+  });
+}
+function solveFrame() {
+  const pairs = S.refs.filter(r => r.world && isFinite(r.world.x) && isFinite(r.world.y));
+  if (!pairs.length) return msg('Type the simulator coordinates of at least one reference point.', 'warn');
+  const s = TG.solveFrame(pairs, num('fyaw', 0));
+  $('fdx').value = f2(s.dx); $('fdy').value = f2(s.dy); $('fyaw').value = (Math.round(s.yawDeg * 100) / 100);
+  updateFrameInfo(); draw();
+  msg(pairs.length > 1 ? `Frame solved from ${pairs.length} points: yaw ${f2(s.yawDeg)}°, scale ${s.scale.toFixed(3)}${Math.abs(s.scale - 1) > 0.03 ? ' ⚠ scale differs from 1: check the points' : ''}, max error ${f2(s.maxErr)} m.` : `Frame translation solved from 1 point (yaw kept at ${num('fyaw', 0)}°).`, 'ok');
+}
+
+/* ---------- drawing ---------- */
+function render() {
+  const r = cv.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height); const sc = S.view.sc;
+  if (S.map) { const m = S.map, [x0, y0] = w2s(m.ox, m.oy + m.h * m.res); ctx.imageSmoothingEnabled = m.res * sc < 3; ctx.drawImage(m.img, x0, y0, m.w * m.res * sc, m.h * m.res * sc); }
+  if (S.map && S.shade && S.field) {                                          // clearance shading: red = no room to spin, amber = lanes only
+    const m = S.map, f = S.field, st = Math.max(1, Math.round(4 / (m.res * sc)));
+    for (let rr = 0; rr < f.h; rr += st) for (let c = 0; c < f.w; c += st) { const d = f.dt[rr * f.w + c]; if (d < S.rp.laneClear) continue; const [x, y] = w2s(f.ox + c * f.res, f.oy + (f.h - rr) * f.res);
+      ctx.fillStyle = d < S.rp.nodeClear ? 'rgba(255,170,0,0.35)' : 'rgba(40,200,90,0.18)'; ctx.fillRect(x, y, st * f.res * sc + 1, st * f.res * sc + 1); }
+  }
+  if (S.grid && sc > 8) { const a = s2w(0, r.height), b = s2w(r.width, 0); ctx.beginPath();
+    for (let x = Math.ceil(a.x); x <= b.x; x++) { const [sx] = w2s(x, 0); ctx.moveTo(sx, 0); ctx.lineTo(sx, r.height); }
+    for (let y = Math.ceil(a.y); y <= b.y; y++) { const [, sy] = w2s(0, y); ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
+    ctx.strokeStyle = 'rgba(47,111,222,0.15)'; ctx.lineWidth = 1; ctx.stroke(); }
+  // map origin axes (red x, green y) and the simulator's origin cross-hair
+  const ax = (x, y, yaw, col, len) => { const [sx, sy] = w2s(x, y); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(yaw) * len, sy - Math.sin(yaw) * len); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); };
+  ax(0, 0, 0, '#d64545', 26); ax(0, 0, Math.PI / 2, '#1f9d55', 26);
+  const wo = TG.toMap(S.frame, 0, 0), [wx, wy] = w2s(wo.x, wo.y), fy = S.frame.yawDeg * Math.PI / 180;
+  ctx.save(); ctx.translate(wx, wy); ctx.rotate(-fy); ctx.strokeStyle = '#a020f0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(30, 0); ctx.moveTo(0, 14); ctx.lineTo(0, -30); ctx.stroke();
+  ctx.fillStyle = '#a020f0'; ctx.font = 'bold 11px system-ui'; ctx.fillText('sim (0,0)', 6, 16); ctx.restore();
+  // raw lines (faint), then the derived graph
+  ctx.setLineDash([6, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(30,60,120,0.35)'; ctx.beginPath();
+  S.lines.v.forEach(l => { const [x, y0] = w2s(l.x, l.y0), [, y1] = w2s(l.x, l.y1); ctx.moveTo(x, y0); ctx.lineTo(x, y1); });
+  S.lines.h.forEach(l => { const [x0, y] = w2s(l.x0, l.y), [x1] = w2s(l.x1, l.y); ctx.moveTo(x0, y); ctx.lineTo(x1, y); }); ctx.stroke(); ctx.setLineDash([]);
+  const g = S.graph;
+  if (g) {
+    ctx.strokeStyle = '#2f6fde'; ctx.lineWidth = 2.2; ctx.beginPath(); g.edges.forEach(([a, b]) => { const [x0, y0] = w2s(g.nodes[a].x, g.nodes[a].y), [x1, y1] = w2s(g.nodes[b].x, g.nodes[b].y); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }); ctx.stroke();
+    if (S.showDrop) { ctx.strokeStyle = 'rgba(214,69,69,0.9)'; ctx.lineWidth = 1.5; ctx.beginPath();                  // dropped lanes / spots
+    g.dropped.edges.forEach(e => { const [x0, y0] = w2s(e.a.x, e.a.y), [x1, y1] = w2s(e.b.x, e.b.y); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); });
+    g.dropped.nodes.forEach(p => { const [x, y] = w2s(p.x, p.y); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); }); ctx.stroke(); }
+    const showId = sc > 22, rad = Math.max(2.5, Math.min(6, sc / 8)); ctx.font = '10px system-ui';
+    const startId = Math.max(0, Math.round(num('idStart', 0))) + 1;
+    g.nodes.forEach(n => { const [x, y] = w2s(n.x, n.y), isStart = n.id === startId;
+      ctx.beginPath(); ctx.arc(x, y, isStart ? rad + 3 : rad, 0, 2 * Math.PI); ctx.fillStyle = isStart ? '#1f9d55' : '#ff7a1a'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.stroke();
+      if (showId || isStart) { ctx.fillStyle = '#111'; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 3; ctx.strokeText(n.id, x + 6, y - 6); ctx.fillText(n.id, x + 6, y - 6); } });
+  }
+  S.refs.forEach((rf, i) => { const [x, y] = w2s(rf.map.x, rf.map.y); ctx.beginPath(); ctx.arc(x, y, 7, 0, 2 * Math.PI); ctx.strokeStyle = '#a020f0'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.fillStyle = '#a020f0'; ctx.font = 'bold 11px system-ui'; ctx.fillText('P' + (i + 1), x + 9, y - 9); });
+  // tool previews
+  if (S.drag && S.tool === 'line') { const d = S.drag; ctx.strokeStyle = lineOk(d.a, d.b) ? '#1f9d55' : '#d64545'; ctx.lineWidth = 3; ctx.setLineDash([]); const [x0, y0] = w2s(d.a.x, d.a.y), [x1, y1] = w2s(d.b.x, d.b.y); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+  if (S.drag && S.tool === 'erase') { const d = S.drag, [x0, y0] = w2s(d.a.x, d.a.y), [x1, y1] = w2s(d.b.x, d.b.y); ctx.fillStyle = 'rgba(214,69,69,.2)'; ctx.strokeStyle = '#d64545'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); }
+  if (S.mouse && S.tool === 'del') { const h = distToLine(S.mouse); if (h) { ctx.strokeStyle = '#d64545'; ctx.lineWidth = 4; ctx.beginPath(); if (h.kind === 'v') { const l = S.lines.v[h.i], [x, y0] = w2s(l.x, l.y0), [, y1] = w2s(l.x, l.y1); ctx.moveTo(x, y0); ctx.lineTo(x, y1); } else { const l = S.lines.h[h.i], [x0, y] = w2s(l.x0, l.y), [x1] = w2s(l.x1, l.y); ctx.moveTo(x0, y); ctx.lineTo(x1, y); } ctx.stroke(); } }
+  $('stZoom').textContent = `zoom ${sc.toFixed(1)} px/m`;
+}
+function lineOk(a, b) { if (!S.field) return true; return TG.segmentClear(S.field, a, b, S.rp.laneClear).ok; }
+function draw() { if (draw.p) return; draw.p = true; requestAnimationFrame(() => { draw.p = false; render(); }); }
+
+/* ---------- export ---------- */
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+const nm = () => ($('name').value || 'layout').trim().replace(/[^\w.-]+/g, '_');
+const date = () => new Date().toISOString();
+function ready() { if (!S.graph || !S.graph.nodes.length) { msg('No tags yet: press "Auto layout" or draw lanes.', 'warn'); return false; } if (S.chk.diagonal || S.chk.crossings) { msg('The graph has diagonal or crossing lanes: fix them first.', 'bad'); return false; } return true; }
+function exportAs(kind) {
+  if (!ready()) return; const g = S.graph, fr = frame(), tag = num('tagSize', .2), n = nm();
+  const hdr = `map: ${S.map ? S.map.name : '-'}   robot ${num('rLen', .6)} x ${num('rWid', .515)} m, margin ${num('rMar', .15)} m`;
+  if (kind === 'map') download(`${n}_tag_map_map_frame.yaml`, TG.tagMapYaml(g, { frame: null, tagSize: tag, date: date(), header: hdr }));
+  if (kind === 'world') download(`${n}_tag_map_world.yaml`, TG.tagMapYaml(g, { frame: fr, tagSize: tag, date: date(), header: hdr }));
+  if (kind === 'csv') download(`${n}_coordinates.csv`, TG.coordsCsv(g, fr), 'text/csv');
+  if (kind === 'sdf') download(`${n}_tags_block.sdf`, TG.sdfBlock(g, fr));
+  if (kind === 'json') download(`${n}.taggraph.json`, JSON.stringify(TG.exportJson(g, { name: n, tagSize: tag, frame: fr, date: date(), mapName: S.map && S.map.name, mapOrigin: S.map && [S.map.ox, S.map.oy], robot: { length: num('rLen', .6), width: num('rWid', .515), margin: num('rMar', .15) }, startTag: Math.round(num('idStart', 0)) + 1 }), null, 1), 'application/json');
+  $('exInfo').innerHTML = `<span class="good">Saved ${kind} export (${g.nodes.length} tags).</span> ${kind === 'json' ? 'Next: <code>python3 export_gazebo.py ' + n + '.taggraph.json --world-in &lt;your world.sdf&gt;</code>' : ''}`;
+  msg(`Exported ${kind}.`, 'ok');
+}
+function saveProject() { download(`${nm()}_project.json`, JSON.stringify({ version: 1, saved: date(), map: S.map && S.map.name, lines: S.lines, startPt: S.startPt, refs: S.refs,
+  params: Object.fromEntries(['res', 'orgX', 'orgY', 'freeGray', 'rLen', 'rWid', 'rMar', 'lSp', 'lSep', 'lAis', 'lMax', 'bx0', 'bx1', 'by0', 'by1', 'fdx', 'fdy', 'fyaw', 'idStart', 'tagSize', 'name'].map(id => [id, $(id).value])) }, null, 1)); msg('Project saved (the map image is not stored: load it again).', 'ok'); }
+async function loadProject(file) { try { const p = JSON.parse(await readAs(file, 'text')); Object.entries(p.params || {}).forEach(([id, v]) => { if ($(id)) $(id).value = v; }); pushUndo(); S.lines = p.lines || { v: [], h: [] }; S.startPt = p.startPt || null; S.refs = p.refs || []; renderRefs(); updateFrameInfo(); rebuildField(); doRefresh(); msg('Project loaded.', 'ok'); } catch (e) { msg('Could not read project: ' + e.message, 'bad'); } }
+
+/* ---------- input ---------- */
+const evPos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => { e.preventDefault(); const [px, py] = evPos(e), w = s2w(px, py), f = Math.pow(1.0015, -e.deltaY); S.view.sc = Math.min(2000, Math.max(1.5, S.view.sc * f)); S.view.ox = px - w.x * S.view.sc; S.view.oy = py + w.y * S.view.sc; draw(); }, { passive: false });
+cv.addEventListener('mousedown', e => {
+  const [px, py] = evPos(e), w = s2w(px, py);
+  if (e.button === 1 || e.button === 2 || (e.button === 0 && S.tool === 'pan')) { S.pan = { px, py, ox: S.view.ox, oy: S.view.oy, moved: false, w }; return; }
+  if (e.button !== 0) return;
+  if (S.tool === 'line') { const a = snapPoint(w); S.drag = { a, b: a }; }
+  else if (S.tool === 'erase') S.drag = { a: w, b: w };
+  else if (S.tool === 'del') { const h = distToLine(w); if (h) { pushUndo(); S.lines[h.kind].splice(h.i, 1); doRefresh(); msg('Lane deleted.', 'ok'); } }
+  else if (S.tool === 'start') { const i = nodeAt(w); if (i === null) return msg('Click on a tag.', 'warn'); pushUndo(); S.startPt = { x: S.graph.nodes[i].x, y: S.graph.nodes[i].y }; doRefresh(); msg(`Tag at (${f2(S.startPt.x)}, ${f2(S.startPt.y)}) is now tag ${Math.round(num('idStart', 0)) + 1}.`, 'ok'); }
+  else if (S.tool === 'ref') { S.refs.push({ map: { x: Math.round(w.x * 100) / 100, y: Math.round(w.y * 100) / 100 }, world: null }); renderRefs(); draw(); msg(`P${S.refs.length} placed: type its simulator coordinates in section 4.`, 'ok'); }
+});
+window.addEventListener('mousemove', e => {
+  const [px, py] = evPos(e);
+  if (S.pan) { if (Math.hypot(px - S.pan.px, py - S.pan.py) > 3) S.pan.moved = true; S.view.ox = S.pan.ox + px - S.pan.px; S.view.oy = S.pan.oy + py - S.pan.py; draw(); return; }
+  if (e.target !== cv && !S.drag) return;
+  S.mouse = s2w(px, py); const w = TG.toWorld(S.frame, S.mouse.x, S.mouse.y), c = S.field ? TG.clearAt(S.field, S.mouse.x, S.mouse.y) : NaN;
+  $('stPos').textContent = `map (${S.mouse.x.toFixed(2)}, ${S.mouse.y.toFixed(2)})  sim (${w.x.toFixed(2)}, ${w.y.toFixed(2)})` + (isFinite(c) ? `  free ${c > 50 ? '>50' : c.toFixed(2)} m` : '');
+  if (S.drag) {
+    if (S.tool === 'line') { let b = snapPoint(S.mouse); const dx = Math.abs(b.x - S.drag.a.x), dy = Math.abs(b.y - S.drag.a.y); if (dx >= dy) b = { x: b.x, y: S.drag.a.y }; else b = { x: S.drag.a.x, y: b.y }; S.drag.b = b; }
+    else S.drag.b = S.mouse;
+  }
+  draw();
+});
+window.addEventListener('mouseup', e => {
+  if (S.pan) { const p = S.pan; S.pan = null; if (!p.moved && S.tool === 'pan') { const i = nodeAt(p.w); if (i !== null) { const n = S.graph.nodes[i], w = TG.toWorld(S.frame, n.x, n.y); msg(`Tag ${n.id}: map (${f2(n.x)}, ${f2(n.y)}) → simulator (${f2(w.x)}, ${f2(w.y)}) m`, 'ok'); } } return; }
+  if (S.drag && e.button === 0) { const d = S.drag; S.drag = null; if (S.tool === 'line') addLine(d.a, d.b); else if (S.tool === 'erase') eraseRect(d); draw(); }
+});
+cv.addEventListener('mouseleave', () => { if (!S.drag) { S.mouse = null; draw(); } });
+window.addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return; const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undo(); } else if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); }
+  else if (k === 'escape') { S.drag = null; draw(); } else if ({ v: 'pan', l: 'line', e: 'erase', d: 'del', s: 'start', r: 'ref' }[k]) setTool({ v: 'pan', l: 'line', e: 'erase', d: 'del', s: 'start', r: 'ref' }[k]);
+});
+document.querySelectorAll('#tools button').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+$('mapFiles').addEventListener('change', e => loadMapFiles(e.target.files).catch(err => msg('Map load failed: ' + err.message, 'bad')));
+$('demoBtn').onclick = () => loadMapUrl('testmap/warehouse_slam.yaml').catch(() => msg('The demo map needs the page to be served: run "python3 -m http.server 8000" in this folder and open http://localhost:8000/tag_graph_maker.html', 'warn'));
+['res', 'orgX', 'orgY', 'freeGray'].forEach(id => $(id).addEventListener('change', () => { rebuildField(); updateMapInfo(); draw(); }));
+['rLen', 'rWid', 'rMar', 'lMax', 'idStart', 'lSep'].forEach(id => $(id).addEventListener('input', refresh));
+['fdx', 'fdy', 'fyaw'].forEach(id => $(id).addEventListener('input', () => { updateFrameInfo(); refresh(); }));
+$('fitBtn').onclick = fitMap; $('gridBtn').onclick = () => { S.grid = !S.grid; $('gridBtn').classList.toggle('on', S.grid); draw(); };
+$('clrBtn').onclick = () => { S.shade = !S.shade; $('clrBtn').classList.toggle('on', S.shade); draw(); };
+$('autoBtn').onclick = autoLayout;
+$('dropBtn').onclick = () => { S.showDrop = !S.showDrop; $('dropBtn').classList.toggle('on', S.showDrop); draw(); };
+$('clearBtn').onclick = () => { pushUndo(); S.lines = { v: [], h: [] }; doRefresh(); msg('Lanes cleared (Ctrl+Z to undo).'); };
+$('undoBtn').onclick = undo; $('redoBtn').onclick = redo; $('solveBtn').onclick = solveFrame;
+$('refClr').onclick = () => { S.refs = []; renderRefs(); draw(); };
+$('regFile').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { const j = JSON.parse(await readAs(f, 'text')); $('fdx').value = f2(j.dx); $('fdy').value = f2(j.dy); $('fyaw').value = Math.round((j.yaw_deg ?? j.yawDeg ?? 0) * 100) / 100; updateFrameInfo(); draw(); msg(`Frame loaded: dx ${f2(j.dx)}, dy ${f2(j.dy)}, yaw ${f2(j.yaw_deg ?? 0)}°${j.rms_m !== undefined ? ', fit error ' + f2(j.rms_m) + ' m' : ''}.`, 'ok'); } catch (err) { msg('Could not read registration.json: ' + err.message, 'bad'); } e.target.value = ''; });
+$('eMap').onclick = () => exportAs('map'); $('eWorld').onclick = () => exportAs('world'); $('eCsv').onclick = () => exportAs('csv'); $('eSdf').onclick = () => exportAs('sdf'); $('eJson').onclick = () => exportAs('json');
+$('eProj').onclick = saveProject; $('lProj').onclick = () => $('projFile').click(); $('projFile').addEventListener('change', e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; });
+new ResizeObserver(resize).observe($('wrap'));
+
+updateRobotInfo(); updateFrameInfo(); fitMap(); setTool('pan'); msg('Load a map (or "Load demo map"), then press "Auto layout".');
+window.__tg = { S, TG, autoLayout, loadMapUrl, doRefresh, exportAs, setTool, addLine, eraseRect };
+// optional automation / demo links:  ?map=testmap/warehouse_slam.yaml&auto=1&frame=13.55,-10,0
+(async () => { const q = new URLSearchParams(location.search); if (q.get('frame')) { const [a, b, c] = q.get('frame').split(',').map(Number); $('fdx').value = a; $('fdy').value = b; $('fyaw').value = c || 0; updateFrameInfo(); }
+  if (q.get('map')) { try { await loadMapUrl(q.get('map')); if (q.get('auto')) autoLayout(); if (q.get('selftest')) { const sc = document.createElement('script'); sc.src = 'tests/gui_selftest.js'; document.body.appendChild(sc); } if (q.get('shade')) { S.shade = true; $('clrBtn').classList.add('on'); draw(); } document.title += ' [ready]'; } catch (e) { msg('Could not load ' + q.get('map') + ': ' + e.message, 'bad'); } } })();
+</script>
+</body>
+</html>
