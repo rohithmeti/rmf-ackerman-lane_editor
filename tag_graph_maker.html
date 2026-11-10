@@ -37,7 +37,7 @@
 <div id="app">
   <div id="side">
     <h1>AprilTag Graph Maker</h1>
-    <div class="info">Load a map, get an <b>orthogonal</b> tag graph (nodes = AprilTags, lanes = edges), and export the coordinates for the simulator. Differential-drive robots: they stop at every tag and spin on the spot. &nbsp;<a href="README_TAG_GRAPH.md" target="_blank">Guide</a> · <a href="lane_maker.html">Ackermann lane maker</a></div>
+    <div class="info">Load a map, get an <b>orthogonal</b> tag graph (nodes = AprilTags, lanes = edges), and export the coordinates for the simulator. Differential-drive robots: they stop at every tag and spin on the spot. &nbsp;<a href="README.md" target="_blank">Guide</a> · <a href="lane_maker.html">Ackermann lane maker</a></div>
 
     <h2>1 · Map</h2>
     <input type="file" id="mapFiles" multiple accept=".yaml,.yml,.pgm,.png,.jpg,.jpeg">
@@ -404,7 +404,14 @@ updateRobotInfo(); updateFrameInfo(); fitMap(); setTool('pan'); msg('Load a map 
 window.__tg = { S, TG, autoLayout, loadMapUrl, doRefresh, exportAs, setTool, addLine, eraseRect };
 // optional automation / demo links:  ?map=testmap/warehouse_slam.yaml&auto=1&frame=13.55,-10,0
 (async () => { const q = new URLSearchParams(location.search); if (q.get('frame')) { const [a, b, c] = q.get('frame').split(',').map(Number); $('fdx').value = a; $('fdy').value = b; $('fyaw').value = c || 0; updateFrameInfo(); }
-  if (q.get('map')) { try { await loadMapUrl(q.get('map')); if (q.get('auto')) autoLayout(); if (q.get('selftest')) { const sc = document.createElement('script'); sc.src = 'tests/gui_selftest.js'; document.body.appendChild(sc); } if (q.get('shade')) { S.shade = true; $('clrBtn').classList.add('on'); draw(); } document.title += ' [ready]'; } catch (e) { msg('Could not load ' + q.get('map') + ': ' + e.message, 'bad'); } } })();
+  if (q.get('map')) { try { await loadMapUrl(q.get('map')); if (q.get('auto')) autoLayout(); if (q.get('selftest')) { const sc = document.createElement('script'); sc.src = 'tests/gui_selftest.js'; document.body.appendChild(sc); } if (q.get('shade')) { S.shade = true; $('clrBtn').classList.add('on'); }
+      if (q.get('drop')) { S.showDrop = true; $('dropBtn').classList.add('on'); }
+      if (q.get('zoom')) { const [cx, cy, sc] = q.get('zoom').split(',').map(Number), r = $('wrap').getBoundingClientRect(); S.view = { sc, ox: r.width / 2 - cx * sc, oy: r.height / 2 + cy * sc }; }
+      const demo = q.get('demo');                                              // documentation states: ?demo=draw | erase | refs
+      if (demo === 'draw') { setTool('line'); S.drag = { a: { x: -11.0, y: 24.0 }, b: { x: -4.0, y: 24.0 } }; S.mouse = S.drag.b; }
+      if (demo === 'erase') { setTool('erase'); S.drag = { a: { x: -13, y: 12 }, b: { x: -7, y: 18 } }; S.mouse = S.drag.b; }
+      if (demo === 'refs') { const fr = frame(); S.refs = [{ map: { x: -20.0, y: 11.0 }, world: TG.toWorld(fr, -20.0, 11.0) }, { map: { x: -9.0, y: 25.0 }, world: TG.toWorld(fr, -9.0, 25.0) }].map(r => ({ map: r.map, world: { x: Math.round(r.world.x * 100) / 100, y: Math.round(r.world.y * 100) / 100 } })); renderRefs(); setTool('ref'); }
+      draw(); document.title += ' [ready]'; } catch (e) { msg('Could not load ' + q.get('map') + ': ' + e.message, 'bad'); } } })();
 </script>
 </body>
 </html>
